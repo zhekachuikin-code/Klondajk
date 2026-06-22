@@ -814,7 +814,7 @@ function extractArticle(pageText) {
 }
 
 // ─── PROMPTS ──────────────────────────────────────────────────────────────────
-function buildPrompt(pageText, managerNotes, noBrand) {
+function buildPrompt(pageText, managerNotes, noBrand, hasNoUrl) {
     const noBrandBlock = noBrand ? `
 ⛔ РЕЖИМ «БЕЗ БРЕНДА» — СТРОГО ОБОВ'ЯЗКОВО
 Визнач назву бренду/виробника з тексту сторінки.
@@ -850,7 +850,9 @@ ${noBrandBlock}
 
 <div class="section" style="display:flex;align-items:center;gap:30px;flex-wrap:wrap;margin-bottom:30px;">
   <div style="flex:1;min-width:300px;">
-    [Головне зображення товару — використовуй реальний img src зі сторінки якщо є, інакше пропусти img]
+    ${hasNoUrl
+        ? `<img src="https://images.prom.ua/7502610463_w1280_h1280_zaglushka_foto.jpeg?fresh=1" alt="Фото товару" style="max-width:100%;border-radius:10px;">`
+        : `[Головне зображення товару — використовуй реальний img src зі сторінки якщо є, інакше встав: <img src="https://images.prom.ua/7502610463_w1280_h1280_zaglushka_foto.jpeg?fresh=1" alt="Фото товару" style="max-width:100%;border-radius:10px;">]`}
   </div>
   <div style="flex:1;min-width:300px;">
     <h1 class="section-title">[Назва товару]</h1>
@@ -1115,7 +1117,7 @@ async function processProduct(source, managerNotes, noBrand, onStage, isCancelle
 
     // Опис УКР
     onStage(1, 'active', '⏳ Генерую HTML-опис (УКР)...');
-    const ua = await callServer(buildPrompt(pageText, managerNotes, noBrand));
+    const ua = await callServer(buildPrompt(pageText, managerNotes, noBrand, !isUrl));
     if (isCancelled()) { result.error = 'cancelled'; return result; }
     if (!ua.ok) { onStage(1, 'error', '❌ Помилка генерації УКР'); result.error = 'desc_ua_failed'; return result; }
 
@@ -1416,7 +1418,7 @@ async function generate(noBrand) {
     showArticle(extractArticle(pageText));
     setStatus(`⏳ Генерую УКР опис${modeLabel}...`, '');
 
-    const ua = await callServer(buildPrompt(pageText, managerNotes, noBrand));
+    const ua = await callServer(buildPrompt(pageText, managerNotes, noBrand, false));
     if (ua.ok) {
         document.getElementById('resUA').value = KLONDAIK_STYLES + ua.text;
         showBlock('blockUA');
