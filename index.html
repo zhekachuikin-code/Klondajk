@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <title>КЛОНДАЙК — Генератор описань</title>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         :root {
             --bg:         #0d0f12;
@@ -22,9 +23,7 @@
             --text-dim:   #4a5168;
             --radius:     10px;
         }
-
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
         body {
             font-family: 'Inter', sans-serif;
             background: var(--bg);
@@ -108,7 +107,6 @@
         }
         .step-body h4 { font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
         .step-body p  { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
-
         .guide-tip {
             background: linear-gradient(135deg, rgba(61,220,132,0.07), rgba(61,220,132,0.03));
             border: 1px solid rgba(61,220,132,0.18);
@@ -131,7 +129,6 @@
             flex-direction: column;
             gap: 20px;
         }
-
         .page-head h1 {
             font-family: 'Syne', sans-serif;
             font-size: 24px; font-weight: 800;
@@ -151,9 +148,7 @@
             text-transform: uppercase; letter-spacing: 1.2px;
             color: var(--text-dim); margin-bottom: 10px;
         }
-
         .input-row { display: flex; gap: 10px; align-items: center; }
-
         input[type="text"] {
             flex: 1;
             padding: 10px 14px;
@@ -169,6 +164,28 @@
         input[type="text"]::placeholder { color: var(--text-dim); }
         input[type="text"]:focus { border-color: var(--green-dim); }
 
+        /* ── MODE TABS ── */
+        .mode-tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+        .mode-tab {
+            padding: 7px 16px;
+            border-radius: 20px;
+            font-family: 'Syne', sans-serif;
+            font-size: 11px; font-weight: 700;
+            letter-spacing: 0.4px;
+            cursor: pointer;
+            background: var(--surface2);
+            color: var(--text-muted);
+            border: 1px solid var(--border2);
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .mode-tab.active {
+            background: linear-gradient(135deg, rgba(192,132,252,0.18), rgba(124,58,237,0.1));
+            border-color: var(--violet);
+            color: var(--violet);
+        }
+        .mode-panel { display: none; }
+        .mode-panel.active { display: block; }
+
         /* ── BUTTONS ── */
         .btn {
             padding: 10px 18px;
@@ -181,12 +198,14 @@
         }
         .btn:hover:not(:disabled) { opacity: 0.82; transform: translateY(-1px); }
         .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
-        .btn-primary  { background: linear-gradient(135deg, #3ddc84, #25a85e); color: #0d0f12; }
-        .btn-nobrand  { background: linear-gradient(135deg, #f0c44a, #c9a020); color: #0d0f12; }
-        .btn-blue     { background: linear-gradient(135deg, #4f9ef8, #2b6cb0); color: #fff; }
-        .btn-seo      { background: linear-gradient(135deg, #4f9ef8, #2b6cb0); color: #fff; }
-        .btn-name     { background: linear-gradient(135deg, #c084fc, #7c3aed); color: #fff; }
-        .btn-sheets   { background: linear-gradient(135deg, #34d399, #059669); color: #0d0f12; }
+        .btn-auto    { background: linear-gradient(135deg, #c084fc, #7c3aed); color: #fff; }
+        .btn-primary { background: linear-gradient(135deg, #3ddc84, #25a85e); color: #0d0f12; }
+        .btn-nobrand { background: linear-gradient(135deg, #f0c44a, #c9a020); color: #0d0f12; }
+        .btn-seo     { background: linear-gradient(135deg, #4f9ef8, #2b6cb0); color: #fff; }
+        .btn-name    { background: linear-gradient(135deg, #c084fc, #7c3aed); color: #fff; }
+        .btn-sheets  { background: linear-gradient(135deg, #34d399, #059669); color: #0d0f12; }
+        .btn-batch   { background: linear-gradient(135deg, #f97316, #c2410c); color: #fff; }
+        .btn-ghost   { background: var(--surface2); color: var(--text-muted); border: 1px solid var(--border2); text-decoration: none; }
 
         .action-row { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
 
@@ -203,34 +222,137 @@
             width: fit-content;
         }
         .article-badge.visible { display: flex; }
-        .article-badge-label {
-            font-size: 10px; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 1px;
-            color: var(--text-dim);
-        }
-        .article-badge-value {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 13px; font-weight: 600;
-            color: var(--accent);
-        }
+        .article-badge-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-dim); }
+        .article-badge-value { font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 600; color: var(--accent); }
 
         /* ── STATUS ── */
-        #status {
-            font-size: 12px; color: var(--text-muted);
-            min-height: 16px;
-            font-family: 'JetBrains Mono', monospace;
-            margin-top: 10px;
-        }
+        #status { font-size: 12px; color: var(--text-muted); min-height: 16px; font-family: 'JetBrains Mono', monospace; margin-top: 10px; }
         #status.ok  { color: var(--green); }
         #status.err { color: #f87171; }
 
-        /* ── NOTES CARD ── */
-        .notes-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            overflow: hidden;
+        /* ── BATCH TEXTAREA ── */
+        #batchLinks {
+            width: 100%; min-height: 110px; max-height: 260px;
+            font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6;
+            padding: 10px 12px;
+            background: var(--bg); border: 1px solid var(--border2);
+            border-radius: var(--radius); color: var(--text); resize: vertical; outline: none;
         }
+        #batchLinks::placeholder { color: var(--text-dim); }
+        #batchLinks:focus { border-color: rgba(249,115,22,0.45); }
+        .batch-hint { font-size: 11px; color: var(--text-dim); margin-top: 6px; }
+        #batchStatus { font-size: 12px; color: var(--text-muted); min-height: 16px; font-family: 'JetBrains Mono', monospace; margin-top: 10px; }
+        #batchStatus.ok  { color: var(--green); }
+        #batchStatus.err { color: #f87171; }
+
+        /* ── FILE DROP ── */
+        .file-drop {
+            border: 1.5px dashed var(--border2);
+            border-radius: var(--radius);
+            padding: 22px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.15s, background 0.15s;
+            background: var(--bg);
+        }
+        .file-drop:hover, .file-drop.dragover { border-color: #f97316; background: rgba(249,115,22,0.05); }
+        .file-drop-icon { font-size: 26px; margin-bottom: 6px; }
+        .file-drop-text { font-size: 13px; color: var(--text); font-weight: 600; }
+        .file-drop-hint { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+        #fileInput { display: none; }
+        .file-selected { display: none; align-items: center; gap: 10px; margin-top: 10px; padding: 8px 12px; background: var(--surface2); border: 1px solid var(--border2); border-radius: var(--radius); font-size: 12px; }
+        .file-selected.visible { display: flex; }
+        .file-selected-name { font-family: 'JetBrains Mono', monospace; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .file-remove { background: none; border: none; color: var(--text-dim); cursor: pointer; font-size: 13px; }
+        .file-remove:hover { color: #f87171; }
+        .preview-table-wrap { margin-top: 12px; max-height: 220px; overflow: auto; border: 1px solid var(--border2); border-radius: var(--radius); }
+        table.preview-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+        table.preview-table th { text-align: left; padding: 7px 10px; background: var(--surface2); color: var(--text-dim); font-weight: 700; font-size: 10px; text-transform: uppercase; position: sticky; top: 0; letter-spacing: 0.5px; }
+        table.preview-table td { padding: 6px 10px; border-top: 1px solid var(--border); color: var(--text-muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        table.preview-table td.col-article { color: var(--accent); font-family: 'JetBrains Mono', monospace; }
+        table.preview-table td.col-name { color: var(--text); }
+        table.preview-table tr:hover td { background: rgba(255,255,255,0.02); }
+        #fileStatus { font-size: 12px; color: var(--text-muted); min-height: 16px; font-family: 'JetBrains Mono', monospace; margin-top: 10px; }
+        #fileStatus.ok  { color: var(--green); }
+        #fileStatus.err { color: #f87171; }
+
+        /* ── AUTO PROGRESS ── */
+        #autoProgress {
+            display: none;
+            background: var(--surface);
+            border: 1px solid rgba(192,132,252,0.3);
+            border-radius: 12px;
+            padding: 16px 18px;
+            flex-direction: column;
+            gap: 12px;
+        }
+        #autoProgress.visible { display: flex; }
+        .ap-header { display: flex; align-items: center; justify-content: space-between; }
+        .ap-title { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; color: var(--violet); text-transform: uppercase; letter-spacing: 1px; }
+        .ap-cancel { font-size: 11px; color: var(--text-dim); background: none; border: none; cursor: pointer; font-family: 'Inter', sans-serif; transition: color 0.15s; }
+        .ap-cancel:hover { color: #f87171; }
+        .ap-steps { display: flex; flex-direction: column; gap: 6px; }
+        .ap-step { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-muted); transition: color 0.2s; }
+        .ap-step.active { color: var(--text); }
+        .ap-step.done   { color: var(--green); }
+        .ap-step.error  { color: #f87171; }
+        .ap-dot {
+            width: 20px; height: 20px; border-radius: 50%;
+            background: var(--surface2); border: 1px solid var(--border2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 10px; font-weight: 700; flex-shrink: 0; color: var(--text-dim);
+            transition: background 0.2s, border-color 0.2s, color 0.2s;
+        }
+        .ap-step.active .ap-dot { background: rgba(192,132,252,0.15); border-color: var(--violet); color: var(--violet); animation: pulse-dot 1.2s linear infinite; }
+        .ap-step.done  .ap-dot { background: rgba(61,220,132,0.15);  border-color: var(--green);  color: var(--green); }
+        .ap-step.error .ap-dot { background: rgba(248,113,113,0.15); border-color: #f87171; color: #f87171; }
+        @keyframes pulse-dot {
+            0%   { box-shadow: 0 0 0 0 rgba(192,132,252,0.4); }
+            50%  { box-shadow: 0 0 0 4px rgba(192,132,252,0.1); }
+            100% { box-shadow: 0 0 0 0 rgba(192,132,252,0); }
+        }
+        .ap-bar-wrap { height: 4px; background: var(--border2); border-radius: 4px; overflow: hidden; }
+        .ap-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #c084fc, #7c3aed); border-radius: 4px; transition: width 0.5s ease; }
+        .ap-msg { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; min-height: 14px; }
+
+        /* ── BATCH PROGRESS ── */
+        #batchProgress {
+            display: none;
+            background: var(--surface);
+            border: 1px solid rgba(249,115,22,0.3);
+            border-radius: 12px;
+            padding: 16px 18px;
+            flex-direction: column;
+            gap: 12px;
+        }
+        #batchProgress.visible { display: flex; }
+        .bp-header { display: flex; align-items: center; justify-content: space-between; }
+        .bp-title { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; color: #f97316; text-transform: uppercase; letter-spacing: 1px; }
+        .bp-overall-bar-wrap { height: 4px; background: var(--border2); border-radius: 4px; overflow: hidden; }
+        .bp-overall-bar { height: 100%; width: 0%; background: linear-gradient(90deg, #f97316, #c2410c); border-radius: 4px; transition: width 0.4s ease; }
+        .bp-overall-label { font-size: 11px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; }
+        .bp-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
+        .bp-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 8px; font-size: 12px; }
+        .bp-item.active { border-color: var(--violet); background: rgba(192,132,252,0.06); }
+        .bp-item.done   { border-color: rgba(61,220,132,0.35); }
+        .bp-item.error  { border-color: rgba(248,113,113,0.4); }
+        .bp-item-dot {
+            width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+            background: var(--bg); border: 1px solid var(--border2);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 9px; font-weight: 700; color: var(--text-dim);
+        }
+        .bp-item.active .bp-item-dot { border-color: var(--violet); color: var(--violet); animation: pulse-dot 1.2s linear infinite; }
+        .bp-item.done   .bp-item-dot { border-color: var(--green); color: var(--green); }
+        .bp-item.error  .bp-item-dot { border-color: #f87171; color: #f87171; }
+        .bp-item-url { flex: 1; min-width: 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .bp-item-stage { font-size: 11px; color: var(--text-dim); white-space: nowrap; }
+        .bp-item.done  .bp-item-stage { color: var(--green); }
+        .bp-item.error .bp-item-stage { color: #f87171; }
+        .bp-item-article { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); white-space: nowrap; }
+
+        /* ── NOTES CARD ── */
+        .notes-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         .notes-header {
             display: flex; align-items: center; justify-content: space-between;
             padding: 13px 18px;
@@ -241,27 +363,15 @@
         .notes-header-left { display: flex; align-items: center; gap: 10px; }
         .notes-header-title { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700; color: var(--text); }
         .notes-header-hint  { font-size: 11px; color: var(--text-muted); }
-        .notes-badge {
-            font-size: 10px; font-weight: 700;
-            padding: 2px 9px; border-radius: 10px;
-            background: rgba(240,196,74,0.12); color: var(--accent);
-            border: 1px solid rgba(240,196,74,0.2);
-        }
+        .notes-badge { font-size: 10px; font-weight: 700; padding: 2px 9px; border-radius: 10px; background: rgba(240,196,74,0.12); color: var(--accent); border: 1px solid rgba(240,196,74,0.2); }
         .notes-toggle { font-size: 12px; color: var(--text-dim); transition: transform 0.22s; }
         .notes-toggle.open { transform: rotate(180deg); }
         .notes-body { display: none; flex-direction: column; gap: 10px; padding: 14px 18px 16px; }
         .notes-body.open { display: flex; }
         .chips-label { font-size: 10px; color: var(--text-dim); font-weight: 600; letter-spacing: 0.5px; }
         .notes-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-        .chip {
-            padding: 4px 11px;
-            background: var(--surface2); border: 1px solid var(--border2);
-            border-radius: 20px; font-size: 11px; color: var(--text-muted);
-            cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s;
-            white-space: nowrap;
-        }
+        .chip { padding: 4px 11px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 20px; font-size: 11px; color: var(--text-muted); cursor: pointer; transition: background 0.15s, color 0.15s, border-color 0.15s; white-space: nowrap; }
         .chip:hover { background: rgba(240,196,74,0.1); border-color: rgba(240,196,74,0.35); color: var(--accent); }
-
         #managerNotes {
             width: 100%; min-height: 90px; max-height: 220px;
             font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.65;
@@ -278,82 +388,34 @@
         .notes-clear:hover { color: #f87171; }
 
         /* ── RESULTS GRID ── */
-        .results-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 14px;
-        }
-
-        /* ── LANG BLOCK ── */
-        .lang-block {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            overflow: hidden;
-            display: none;
-            flex-direction: column;
-        }
+        .results-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .lang-block { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: none; flex-direction: column; }
         .lang-block.visible { display: flex; }
-
-        .lang-header {
-            display: flex; align-items: center; justify-content: space-between;
-            padding: 11px 16px;
-        }
+        .lang-header { display: flex; align-items: center; justify-content: space-between; padding: 11px 16px; }
         .lang-header.ua      { background: linear-gradient(90deg, #1a3a5c, #162f48); border-bottom: 1px solid #1e3d5e; }
         .lang-header.ru      { background: linear-gradient(90deg, #1a3a28, #142d1e); border-bottom: 1px solid #1e3d2a; }
         .lang-header.seo-ua  { background: linear-gradient(90deg, #2a2a1a, #22221a); border-bottom: 1px solid #3a3a1e; }
         .lang-header.seo-ru  { background: linear-gradient(90deg, #2a1a2a, #22162a); border-bottom: 1px solid #3a1e3a; }
         .lang-header.name-ua { background: linear-gradient(90deg, #1a3a5c, #162f48); border-bottom: 1px solid #1e3d5e; }
         .lang-header.name-ru { background: linear-gradient(90deg, #1a3a28, #142d1e); border-bottom: 1px solid #1e3d2a; }
-
-        .lang-name {
-            font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
-            color: var(--text); display: flex; align-items: center; gap: 8px;
-        }
+        .lang-name { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 8px; }
         .dot-blue   { width:7px;height:7px;border-radius:50%;background:var(--blue);display:inline-block; }
         .dot-green  { width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block; }
         .dot-gold   { width:7px;height:7px;border-radius:50%;background:var(--accent);display:inline-block; }
         .dot-violet { width:7px;height:7px;border-radius:50%;background:var(--violet);display:inline-block; }
-
-        .lang-block textarea {
-            flex: 1; width: 100%; height: 280px;
-            font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6;
-            padding: 12px 14px; border: none; resize: vertical;
-            background: var(--bg); color: #9ab3d4; outline: none;
-        }
+        .lang-block textarea { flex: 1; width: 100%; height: 280px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.6; padding: 12px 14px; border: none; resize: vertical; background: var(--bg); color: #9ab3d4; outline: none; }
         .lang-block textarea.seo-ta  { color: #c8b87a; height: 200px; }
         .lang-block textarea.name-ta { height: 68px; color: #7ab4e8; font-size: 13px; resize: none; }
-
-        .copy-btn {
-            padding: 4px 12px;
-            background: rgba(255,255,255,0.07);
-            color: rgba(255,255,255,0.75);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 6px; cursor: pointer;
-            font-size: 11px; font-weight: 600;
-            transition: background 0.18s;
-            font-family: 'Syne', sans-serif;
-        }
+        .copy-btn { padding: 4px 12px; background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.75); border: 1px solid rgba(255,255,255,0.15); border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600; transition: background 0.18s; font-family: 'Syne', sans-serif; }
         .copy-btn:hover { background: rgba(255,255,255,0.14); }
         .copy-btn.copied { color: var(--green); border-color: rgba(61,220,132,0.3); }
 
         /* ── NAME SECTION ── */
-        .name-section-header {
-            display: none; align-items: center; gap: 10px; padding: 4px 0;
-        }
+        .name-section-header { display: none; align-items: center; gap: 10px; padding: 4px 0; }
         .name-section-header.visible { display: flex; }
-        .name-section-label {
-            font-family: 'Syne', sans-serif;
-            font-size: 10px; font-weight: 700;
-            text-transform: uppercase; letter-spacing: 1.5px;
-            color: var(--blue); white-space: nowrap;
-        }
-        .name-section-line {
-            flex: 1; height: 1px;
-            background: linear-gradient(90deg, rgba(79,158,248,0.3), transparent);
-        }
+        .name-section-label { font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--blue); white-space: nowrap; }
+        .name-section-line { flex: 1; height: 1px; background: linear-gradient(90deg, rgba(79,158,248,0.3), transparent); }
         .name-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-
         .foot-note { font-size: 11px; color: var(--text-dim); padding-top: 2px; }
 
         ::-webkit-scrollbar { width: 5px; }
@@ -368,11 +430,10 @@
         <img src="https://images.prom.ua/4287919640_w250_h100_klondajk.jpg" alt="Клондайк" style="height:36px;width:auto;display:block;">
         <span>/ Генератор описань</span>
     </div>
-    <div class="topbar-badge">Gemini · УКР + РУС · HTML</div>
+    <div class="topbar-badge">Gemini · УКР + РУС · HTML · Авто · Пакет</div>
 </div>
 
 <div class="layout">
-
     <aside class="sidebar">
         <div class="sidebar-title">📖 Як користуватися</div>
         <div style="display:flex;flex-direction:column;gap:14px;">
@@ -386,19 +447,19 @@
             </div>
             <div class="guide-step">
                 <div class="step-num">3</div>
-                <div class="step-body"><h4>Створіть опис</h4><p>«Створити» — з брендом. «БЕЗ БРЕНДА» — без згадки бренду. AI також витягне артикул.</p></div>
+                <div class="step-body"><h4>⚡ Авто — одна кнопка</h4><p>Запускає весь цикл: опис → SEO → назва → таблиця автоматично (~3 хв).</p></div>
             </div>
             <div class="guide-step">
                 <div class="step-num">4</div>
-                <div class="step-body"><h4>Згенеруйте SEO-ключі</h4><p>Інформаційні ключові слова для просування (без комерційних слів).</p></div>
+                <div class="step-body"><h4>Або покроково</h4><p>«Створити» — HTML з брендом. «БЕЗ БРЕНДА» — без згадки бренду. Потім SEO → Назва → Таблиця.</p></div>
             </div>
             <div class="guide-step">
                 <div class="step-num">5</div>
-                <div class="step-body"><h4>Покращте найменування</h4><p>AI складе SEO-оптимальну назву на основі опису та ключів.</p></div>
+                <div class="step-body"><h4>📦 Список посилань</h4><p>Вставте кілька URL (кожне з нового рядка) — обробка пройде по черзі.</p></div>
             </div>
             <div class="guide-step">
                 <div class="step-num">6</div>
-                <div class="step-body"><h4>Збережіть в таблицю</h4><p>Кнопка «📊 В таблицю» запише всі дані разом з артикулом.</p></div>
+                <div class="step-body"><h4>📁 Файл XLS/CSV</h4><p>Завантажте прайс із колонками: Артикул, Найменування, РРЦ, Опис.</p></div>
             </div>
         </div>
         <div class="guide-tip">
@@ -406,51 +467,126 @@
             <p>Товар має бути публічно доступний (без авторизації).</p>
             <p>РУС-версія генерується як переклад УКР-версії.</p>
             <p>SEO-ключі — лише інформаційні, без комерційних слів.</p>
+            <p>В пакетному режимі примітки застосовуються до всіх товарів.</p>
         </div>
     </aside>
 
     <main class="main">
-
         <div class="page-head">
             <h1>Генератор описань товарів</h1>
-            <p>HTML-опис · SEO-ключі · Покращена назва · УКР + РУС (переклад)</p>
+            <p>HTML-опис · SEO-ключі · Покращена назва · УКР + РУС · Авто · Пакет · Файл</p>
         </div>
 
-        <!-- INPUT CARD -->
+        <!-- ── INPUT CARD ── -->
         <div class="card">
-            <div class="card-label">Посилання на товар</div>
-            <div class="input-row">
-                <input type="text" id="link" placeholder="https://prom.ua/p1234567890-tovar.html">
+            <div class="mode-tabs">
+                <div class="mode-tab active" id="tabSingle" onclick="switchMode('single')">🔗 Один товар</div>
+                <div class="mode-tab" id="tabBatch"  onclick="switchMode('batch')">📦 Список посилань</div>
+                <div class="mode-tab" id="tabFile"   onclick="switchMode('file')">📁 Файл (XLS/CSV)</div>
             </div>
 
-            <div class="article-badge" id="articleBadge">
-                <span class="article-badge-label">Артикул</span>
-                <span class="article-badge-value" id="articleValue">—</span>
+            <!-- ─── Один товар ─── -->
+            <div class="mode-panel active" id="panelSingle">
+                <div class="card-label">Посилання на товар</div>
+                <div class="input-row">
+                    <input type="text" id="link" placeholder="https://prom.ua/p1234567890-tovar.html">
+                </div>
+                <div class="article-badge" id="articleBadge">
+                    <span class="article-badge-label">Артикул</span>
+                    <span class="article-badge-value" id="articleValue">—</span>
+                </div>
+                <div class="action-row">
+                    <button class="btn btn-auto"    id="autoBtn"    onclick="runAuto()">⚡ Авто</button>
+                    <button class="btn btn-primary" id="genBtn"     onclick="generate(false)">✨ Створити опис</button>
+                    <button class="btn btn-nobrand" id="noBrandBtn" onclick="generate(true)">🚫 БЕЗ БРЕНДА</button>
+                    <button class="btn btn-seo"     id="seoBtn"     onclick="generateSEO()"   disabled>🔑 SEO-ключі</button>
+                    <button class="btn btn-name"    id="nameBtn"    onclick="generateName()"  disabled>✦ Назва</button>
+                    <button class="btn btn-sheets"  id="saveBtn"    onclick="saveToSheets()"  disabled>📊 В таблицю</button>
+                    <a href="https://docs.google.com/spreadsheets/d/1SFM1bSNCnKe4rU_J9xfQ2f7mfjx-5ku3ExkDuP13Obw/edit"
+                       target="_blank" class="btn btn-ghost">📋 Відкрити таблицю</a>
+                </div>
+                <div id="status"></div>
             </div>
 
-            <div class="action-row">
-                <button class="btn btn-primary"  id="genBtn"     onclick="generate(false)">✨ Створити опис</button>
-                <button class="btn btn-nobrand"  id="noBrandBtn" onclick="generate(true)">🚫 БЕЗ БРЕНДА</button>
-                <button class="btn btn-seo"      id="seoBtn"     onclick="generateSEO()"   disabled>🔑 SEO-ключі</button>
-                <button class="btn btn-name"     id="nameBtn"    onclick="generateName()"  disabled>✦ Назва</button>
-                <button class="btn btn-sheets"   id="saveBtn"    onclick="saveToSheets()"  disabled>📊 В таблицю</button>
-                <a href="https://docs.google.com/spreadsheets/d/1SFM1bSNCnKe4rU_J9xfQ2f7mfjx-5ku3ExkDuP13Obw/edit"
-                   target="_blank" class="btn"
-                   style="background:var(--surface2);color:var(--text-muted);border:1px solid var(--border2);text-decoration:none;">
-                    📋 Відкрити таблицю
-                </a>
+            <!-- ─── Список посилань ─── -->
+            <div class="mode-panel" id="panelBatch">
+                <div class="card-label">Список посилань (кожне з нового рядка)</div>
+                <textarea id="batchLinks" placeholder="https://prom.ua/product-1&#10;https://prom.ua/product-2&#10;https://prom.ua/product-3"></textarea>
+                <div class="batch-hint" id="batchCount">0 посилань у списку</div>
+                <div class="action-row">
+                    <button class="btn btn-batch" id="batchBtn" onclick="runBatch()">📦 Обробити всі товари</button>
+                    <a href="https://docs.google.com/spreadsheets/d/1SFM1bSNCnKe4rU_J9xfQ2f7mfjx-5ku3ExkDuP13Obw/edit"
+                       target="_blank" class="btn btn-ghost">📋 Відкрити таблицю</a>
+                </div>
+                <div id="batchStatus"></div>
             </div>
-            <div id="status"></div>
+
+            <!-- ─── Файл ─── -->
+            <div class="mode-panel" id="panelFile">
+                <div class="card-label">Файл зі списком товарів (.xls, .xlsx, .csv)</div>
+                <div class="file-drop" id="fileDrop" onclick="document.getElementById('fileInput').click()">
+                    <div class="file-drop-icon">📁</div>
+                    <div class="file-drop-text">Натисніть або перетягніть файл сюди</div>
+                    <div class="file-drop-hint">Колонки: Артикул, Найменування/Назва, РРЦ, Опис (необов'язково)</div>
+                </div>
+                <input type="file" id="fileInput" accept=".xls,.xlsx,.csv" onchange="onFileSelected(event)">
+                <div class="file-selected" id="fileSelected">
+                    <span>📄</span>
+                    <span class="file-selected-name" id="fileSelectedName"></span>
+                    <button class="file-remove" onclick="clearFile()">✕</button>
+                </div>
+                <div class="batch-hint" id="fileCount" style="display:none;"></div>
+                <div class="preview-table-wrap" id="filePreviewWrap" style="display:none;">
+                    <table class="preview-table">
+                        <thead><tr><th>Артикул</th><th>Найменування</th><th>РРЦ</th><th>Опис (джерело)</th></tr></thead>
+                        <tbody id="filePreviewBody"></tbody>
+                    </table>
+                </div>
+                <div class="action-row">
+                    <button class="btn btn-batch" id="fileBtn" onclick="runFileBatch()" disabled>📁 Обробити товари з файлу</button>
+                    <a href="https://docs.google.com/spreadsheets/d/1SFM1bSNCnKe4rU_J9xfQ2f7mfjx-5ku3ExkDuP13Obw/edit"
+                       target="_blank" class="btn btn-ghost">📋 Відкрити таблицю</a>
+                </div>
+                <div id="fileStatus"></div>
+            </div>
         </div>
 
-        <!-- NOTES CARD -->
+        <!-- ── АВТО ПРОГРЕС ── -->
+        <div id="autoProgress">
+            <div class="ap-header">
+                <span class="ap-title">⚡ Авто-режим</span>
+                <button class="ap-cancel" id="apCancelBtn" onclick="cancelAuto()">✕ Скасувати</button>
+            </div>
+            <div class="ap-steps">
+                <div class="ap-step" id="apStep0"><div class="ap-dot" id="apDot0">1</div><span>Парсинг сторінки товару</span></div>
+                <div class="ap-step" id="apStep1"><div class="ap-dot" id="apDot1">2</div><span>Опис УКР + РУС (HTML)</span></div>
+                <div class="ap-step" id="apStep2"><div class="ap-dot" id="apDot2">3</div><span>SEO-ключі УКР + РУС</span></div>
+                <div class="ap-step" id="apStep3"><div class="ap-dot" id="apDot3">4</div><span>Покращення найменування</span></div>
+                <div class="ap-step" id="apStep4"><div class="ap-dot" id="apDot4">5</div><span>Збереження до таблиці</span></div>
+            </div>
+            <div class="ap-bar-wrap"><div class="ap-bar" id="apBar"></div></div>
+            <div class="ap-msg" id="apMsg"></div>
+        </div>
+
+        <!-- ── ПАКЕТНИЙ ПРОГРЕС ── -->
+        <div id="batchProgress">
+            <div class="bp-header">
+                <span class="bp-title">📦 Пакетна обробка</span>
+                <button class="ap-cancel" id="bpCancelBtn" onclick="cancelBatch()">✕ Скасувати</button>
+            </div>
+            <div class="bp-overall-label" id="bpOverallLabel">0 / 0 товарів оброблено</div>
+            <div class="bp-overall-bar-wrap"><div class="bp-overall-bar" id="bpOverallBar"></div></div>
+            <div class="bp-list" id="bpList"></div>
+        </div>
+
+        <!-- ── ПРИМІТКИ ── -->
         <div class="notes-card">
-            <div class="notes-header" id="notesToggleBtn" onclick="toggleNotes()">
+            <div class="notes-header" onclick="toggleNotes()">
                 <div class="notes-header-left">
                     <span style="font-size:15px">📋</span>
                     <div>
                         <div class="notes-header-title">Примітки менеджера</div>
-                        <div class="notes-header-hint">Бренд, акції, доставка, гарантія...</div>
+                        <div class="notes-header-hint">Бренд, акції, доставка, гарантія... (для всіх товарів у пакеті)</div>
                     </div>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;">
@@ -483,7 +619,7 @@
             </div>
         </div>
 
-        <!-- DESCRIPTIONS -->
+        <!-- ── РЕЗУЛЬТАТИ: ОПИСИ ── -->
         <div class="results-grid">
             <div class="lang-block" id="blockUA">
                 <div class="lang-header ua">
@@ -501,7 +637,7 @@
             </div>
         </div>
 
-        <!-- SEO KEYS -->
+        <!-- ── РЕЗУЛЬТАТИ: SEO ── -->
         <div class="results-grid">
             <div class="lang-block" id="blockSEO-UA">
                 <div class="lang-header seo-ua">
@@ -519,7 +655,7 @@
             </div>
         </div>
 
-        <!-- NAME SECTION -->
+        <!-- ── РЕЗУЛЬТАТИ: НАЗВА ── -->
         <div class="name-section-header" id="nameSectionHeader">
             <span class="name-section-label">✦ SEO-оптимальне найменування</span>
             <div class="name-section-line"></div>
@@ -541,7 +677,7 @@
             </div>
         </div>
 
-        <div class="foot-note">Усі поля лише для читання — використовуйте кнопку «Скопіювати» в кожному блоці.</div>
+        <div class="foot-note">Усі поля лише для читання — використовуйте «Скопіювати». У пакетному режимі показується останній оброблений товар, всі записуються до таблиці автоматично.</div>
     </main>
 </div>
 
@@ -570,7 +706,6 @@ const KLONDAIK_STYLES = `<promhtml>
 .attention-block h2{color:#d35400;margin-bottom:10px;font-size:18px;}
 .attention-block p{color:#5c3b00;margin-bottom:8px;}
 .notice-green{background-color:rgba(212,237,218,0.6);border-left:5px solid #28a745;font-size:16px;padding:15px;margin-top:20px;border-radius:10px;}
-.notice-red{background-color:rgba(248,215,218,0.6);border-left:5px solid #dc3545;font-size:18px;font-weight:bold;color:#721c24;padding:15px;margin-top:20px;border-radius:10px;}
 .buy-now-button{display:inline-block;padding:12px 24px;background:linear-gradient(90deg,#2b6cb0,#3182ce);color:#ffffff!important;font-size:16px;font-weight:500;text-align:center;text-decoration:none;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:background 0.3s ease;}
 .buy-now-button:hover{background:linear-gradient(90deg,#2c5282,#2b6cb0);}
 .brand-logo-floating{display:block;margin-top:15px;text-align:center;}
@@ -583,22 +718,49 @@ const KLONDAIK_STYLES = `<promhtml>
 .quick-specs-bar .spec-item{text-align:center;padding:5px 15px;flex:1;min-width:100px;}
 .quick-specs-bar .spec-item span{display:block;font-size:12px;color:#4a5568;margin-bottom:3px;text-transform:uppercase;font-weight:500;}
 .quick-specs-bar .spec-item strong{font-size:18px;color:#28a745;font-weight:800;}
-.product-tag{display:inline-block;padding:5px 10px;margin-right:10px;border-radius:5px;font-size:14px;font-weight:700;text-transform:uppercase;}
-.tag-sale{background-color:#dc3545;color:#ffffff;}
-.tag-new{background-color:#ffc107;color:#2d3748;}
-@media(max-width:600px){.wrapper{padding:15px;}.section{padding:15px;margin-bottom:25px;}.section-title{font-size:20px;}.ck-table th,.ck-table td{font-size:13px;padding:8px;}.quick-specs-bar{display:block;padding:5px;}.quick-specs-bar .spec-item{border-bottom:1px solid #b2f5ea;padding:10px;}.quick-specs-bar .spec-item:last-child{border-bottom:none;}}
+@media(max-width:600px){.wrapper{padding:15px;}.section{padding:15px;margin-bottom:25px;}.quick-specs-bar{display:block;}}
 </style>`;
 
 // ─── STATE ─────────────────────────────────────────────────────────────────────
 let currentArticle = '';
 let _noBrandMode   = false;
+let autoCancelled  = false;
+let batchCancelled = false;
+let fileRows       = [];
+
+// ─── MODE TABS ─────────────────────────────────────────────────────────────────
+function switchMode(mode) {
+    ['single','batch','file'].forEach(m => {
+        document.getElementById('tab' + m.charAt(0).toUpperCase() + m.slice(1)).classList.toggle('active', m === mode);
+        document.getElementById('panel' + m.charAt(0).toUpperCase() + m.slice(1)).classList.toggle('active', m === mode);
+    });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    const ta = document.getElementById('batchLinks');
+    if (ta) ta.addEventListener('input', () => {
+        const urls = parseBatchLinks(ta.value);
+        document.getElementById('batchCount').textContent = urls.length + ' посилань у списку';
+    });
+    // drag-drop for file
+    const drop = document.getElementById('fileDrop');
+    drop.addEventListener('dragover',  e => { e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+    drop.addEventListener('drop', e => {
+        e.preventDefault(); drop.classList.remove('dragover');
+        const f = e.dataTransfer.files[0];
+        if (f) { document.getElementById('fileInput').files = e.dataTransfer.files; onFileSelected({ target: { files: [f] } }); }
+    });
+});
+
+function parseBatchLinks(raw) {
+    return raw.split('\n').map(s => s.trim()).filter(s => s.length > 0 && s.startsWith('http'));
+}
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-function setStatus(msg, type) {
-    const el = document.getElementById('status');
-    el.textContent = msg;
-    el.className = type || '';
-}
+function setStatus(msg, type)      { const el = document.getElementById('status');      el.textContent = msg; el.className = type || ''; }
+function setBatchStatus(msg, type) { const el = document.getElementById('batchStatus'); el.textContent = msg; el.className = type || ''; }
+function setFileStatus(msg, type)  { const el = document.getElementById('fileStatus');  el.textContent = msg; el.className = type || ''; }
 function showBlock(id) { const el = document.getElementById(id); if (el) el.classList.add('visible'); }
 function hideBlock(id) { const el = document.getElementById(id); if (el) el.classList.remove('visible'); }
 
@@ -610,16 +772,18 @@ function showArticle(value) {
     else { badge.classList.remove('visible'); }
 }
 
-function extractArticle(pageText) {
-    const patterns = [
-        /(?:артикул|арт(?:икул)?\.?|код товару|код товара|article|sku|item\s*(?:no|num|#|code))[:\s#]+([A-Za-zА-Яа-яЁёІіЇїЄє0-9][-A-Za-zА-Яа-яЁёІіЇїЄє0-9_.\/]{1,30})/gi,
-    ];
-    for (const re of patterns) {
-        re.lastIndex = 0;
-        const m = re.exec(pageText);
-        if (m && m[1]) return m[1].trim();
-    }
-    return '—';
+function lockAll(lock) {
+    ['autoBtn','genBtn','noBrandBtn','seoBtn','nameBtn','saveBtn','batchBtn','fileBtn'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = lock;
+    });
+}
+
+function clearResults() {
+    ['blockUA','blockRU','blockSEO-UA','blockSEO-RU','blockNameUA','blockNameRU'].forEach(hideBlock);
+    document.getElementById('nameSectionHeader').classList.remove('visible');
+    ['resUA','resRU','seoUA','seoRU','nameUA','nameRU'].forEach(id => { document.getElementById(id).value = ''; });
+    showArticle('');
 }
 
 async function fetchPageText(url) {
@@ -639,9 +803,14 @@ async function callServer(prompt) {
         });
         const data = await resp.json();
         return data.ok ? { ok: true, text: data.text } : { ok: false, text: '' };
-    } catch (e) {
-        return { ok: false, text: '' };
-    }
+    } catch (e) { return { ok: false, text: '' }; }
+}
+
+function extractArticle(pageText) {
+    const re = /(?:артикул|арт(?:икул)?\.?|код товару|код товара|article|sku|item\s*(?:no|num|#|code))[:\s#]+([A-Za-zА-Яа-яЁёІіЇїЄє0-9][-A-Za-zА-Яа-яЁёІіЇїЄє0-9_.\/]{1,30})/gi;
+    re.lastIndex = 0;
+    const m = re.exec(pageText);
+    return m && m[1] ? m[1].trim() : '—';
 }
 
 // ─── PROMPTS ──────────────────────────────────────────────────────────────────
@@ -652,12 +821,10 @@ function buildPrompt(pageText, managerNotes, noBrand) {
 ПОВНІСТЮ ВИКЛЮЧИ цю назву з усього тексту опису:
 • НЕ згадуй бренд ніде: ні в заголовку, ні в характеристиках, ні в FAQ.
 • Замість назви бренду використовуй нейтральні слова: «виробник», «дана модель», «цей товар».
-• Якщо назва бренду входить в артикул або модель — прибери або заміни на нейтральне позначення.
 ` : '';
-
     const notesBlock = managerNotes ? `
 ДОДАТКОВА ІНФОРМАЦІЯ ВІД МЕНЕДЖЕРА (ОБОВ'ЯЗКОВО ДОДАТИ):
-Органічно впиши цю інформацію в текст (можна створити окремий attention-block або додати в FAQ):
+Органічно впиши цю інформацію в текст:
 "${managerNotes}"
 ` : '';
 
@@ -745,7 +912,7 @@ ${noBrandNote}
 • НЕ додавай і НЕ прибирай інформацію.
 • Зберігай всю HTML-розмітку, класи, теги — змінюй лише текст.
 • Кнопку "Купити зараз" заміни на "Купить сейчас".
-• Весь текст — виключно РОСІЙСЬКОЮ мовою. Заборонені українські слова: "та", "також", "які", "що", "або", "цей/ця/це", "від", "є", "може", "дає", "має".
+• Весь текст — виключно РОСІЙСЬКОЮ мовою.
 • Логотип Клондайк залиш без змін.
 • Виводь лише голий HTML без markdown-обгорток.
 
@@ -753,12 +920,10 @@ ${noBrandNote}
 ${uaHtml}`;
 }
 
-// ─── SEO PROMPT (посилений, без комерційних слів) ────────────────────────────
 function buildSEOPrompt(text, noBrand) {
     const noBrandNote = noBrand
         ? ' ВАЖЛИВО: повністю виключи назву бренду/виробника з ключових слів.'
         : '';
-
     return `Ти — SEO-спеціаліст інтернет-магазину Клондайк.
 Проаналізуй текст опису товару та напиши 15-20 релевантних SEO-ключів УКРАЇНСЬКОЮ мовою.
 
@@ -767,17 +932,7 @@ function buildSEOPrompt(text, noBrand) {
 ✅ Ключі мають відповідати реальним пошуковим запитам покупців про властивості товару.
 ✅ Включай: типи товару, матеріали, технічні параметри, сферу застосування, синоніми назви.
 
-❌ ЗАБОРОНЕНО включати будь-які комерційні слова та словосполучення:
-— купити, замовити, придбати, заказати
-— ціна, вартість,артикул, прайс, вартість
-— характеристики (саме слово як ключ)
-— інтернет-магазин, магазин, shop, store
-— дешево, недорого, акція, знижка, розпродаж
-— доставка, відправка, оплата
-— відгуки, огляд, огляди, рейтинг
-— офіційний, оригінал, сертифікат
-— з доставкою, в Україні, Київ, Харків (та інші міста/регіони)
-— будь-які назви конкурентів або маркетплейсів${noBrandNote}
+❌ ЗАБОРОНЕНО: купити, замовити, придбати, ціна, вартість, артикул, інтернет-магазин, дешево, акція, доставка, відгуки, огляд, офіційний, оригінал, назви міст, назви конкурентів${noBrandNote}
 
 ФОРМАТ ВИВОДУ: лише ключові слова через кому, без нумерації, без пояснень, без заголовків.
 
@@ -793,24 +948,28 @@ function buildTranslateSEOPrompt(uaKeys) {
 ${uaKeys}`;
 }
 
-function buildNamePrompt(textUA, seoUA) {
-    return `У тебе є готовий опис товару та SEO-ключі українською мовою.
-
+function buildNamePrompt(textUA, seoUA, managerNotes, noBrand) {
+    const noBrandNote = noBrand ? '\n⛔ РЕЖИМ «БЕЗ БРЕНДА»: ПОВНІСТЮ виключи назву бренду з найменування — замінюй нейтральними словами.\n' : '';
+    return `У тебе є готовий HTML-опис товару та SEO-ключі українською мовою.
+${noBrandNote}
 ОПИС (УКР):
 ${textUA}
 
 ${seoUA ? `SEO-КЛЮЧІ (УКР):\n${seoUA}\n` : ''}
+${managerNotes ? `ІНФОРМАЦІЯ ВІД МЕНЕДЖЕРА (ПРІОРИТЕТНА):\n${managerNotes}\n` : ''}
 
 Твоє завдання — скласти SEO-оптимальну назву товару за шаблоном.
 
 КРОК 1 — Витягни з опису:
 A = Тип товару (наприклад: крісло, стіл, намет, підставка)
 B = Назва моделі (наприклад: Директор Лайт, Пікнік) — ОБОВ'ЯЗКОВО!
-C = Торгова марка / бренд (наприклад: Vitan, Tramp, Nash)
-D = 1-2 ключові характеристики з SEO-ключів
-E = Колір або варіант (якщо вказано)
+C = Торгова марка / бренд. Якщо в примітках менеджера вказаний бренд — використовуй ЙОГО ДОСЛІВНО (включаючи "TM"/"ТМ", регістр), навіть якщо в описі інакше.
+D = 1-2 ключові характеристики з SEO-ключів — пиши грамотно, без опечаток джерела
+E = Колір або варіант (якщо вказаний)
 F = Тканина (якщо вказана)
-G = Діаметр труб та максимальна маса (якщо вказані)
+G = Діаметр труб та максимальна маса — переноси ТОЧНО як у джерелі (наприклад: "d20 мм", "до 120кг")
+
+ЗАБОРОНА НА ПОВТОРИ: кожне слово — лише один раз. Якщо модель [B] вже є в типі [A] — не повторюй.
 
 КРОК 2 — Склади назву СТРОГО в такому порядку:
 [A] [B] [C] [D] [G] ([F, E])
@@ -821,50 +980,399 @@ G = Діаметр труб та максимальна маса (якщо вк�
 - Ставити бренд [C] після характеристик [D]
 - Використовувати лапки будь-якого виду
 - Використовувати рекламні слова
+- Змінювати формулювання бренду з примітки менеджера
 
 Виведи СТРОГО у форматі:
 UA: [назва українською за шаблоном]
+RU: [переклад UA назви на російську; бренд/TM з примітки менеджера НЕ перекладай і НЕ міняй]
 
-Жодних пояснень, лише один рядок з префіксом UA:`;
+Жодних пояснень, лише два рядки з префіксами UA: і RU:`;
 }
 
-function buildTranslateNamePrompt(nameUA) {
-    return `Переклади назву товару з УКРАЇНСЬКОЇ на РОСІЙСЬКУ мову.
-Зберігай точну структуру та зміст. Виводь СТРОГО у форматі:
-RU: [назва російською]
-
-Жодних пояснень.
-
-УКРАЇНСЬКА НАЗВА:
-${nameUA}`;
+function buildSourceTextFromRow(row) {
+    let txt = `Назва товару: ${row.name}\n`;
+    if (row.price) txt += `Ціна: ${row.price}\n`;
+    if (row.description) txt += `\nОпис з прайсу:\n${row.description}`;
+    else txt += `\n(Додаткового опису немає — використовуй лише назву товару та її компоненти, не вигадуй характеристики яких немає в назві.)`;
+    return txt;
 }
 
-// ─── GENERATE ─────────────────────────────────────────────────────────────────
+// ─── AUTO PROGRESS UI ─────────────────────────────────────────────────────────
+function apShow()  { document.getElementById('autoProgress').classList.add('visible'); }
+function apHide()  { document.getElementById('autoProgress').classList.remove('visible'); }
+function apSetStep(idx, state) {
+    const step = document.getElementById('apStep' + idx);
+    const dot  = document.getElementById('apDot' + idx);
+    step.className = 'ap-step ' + (state || '');
+    dot.textContent = state === 'done' ? '✓' : state === 'error' ? '✕' : String(idx + 1);
+}
+function apSetBar(pct) { document.getElementById('apBar').style.width = pct + '%'; }
+function apSetMsg(msg) { document.getElementById('apMsg').textContent = msg; }
+function apReset() { for (let i = 0; i < 5; i++) apSetStep(i, ''); apSetBar(0); apSetMsg(''); }
+function cancelAuto() { autoCancelled = true; apSetMsg('⛔ Скасовано користувачем'); document.getElementById('apCancelBtn').disabled = true; }
+
+// ─── BATCH PROGRESS UI ───────────────────────────────────────────────────────
+function bpShow() { document.getElementById('batchProgress').classList.add('visible'); }
+function bpHide() { document.getElementById('batchProgress').classList.remove('visible'); }
+
+function bpRenderList(labels) {
+    const list = document.getElementById('bpList');
+    list.innerHTML = '';
+    labels.forEach((label, i) => {
+        const item = document.createElement('div');
+        item.className = 'bp-item';
+        item.id = 'bpItem' + i;
+        item.innerHTML = `
+            <div class="bp-item-dot" id="bpDot${i}">${i + 1}</div>
+            <div class="bp-item-url" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
+            <div class="bp-item-article" id="bpArticle${i}"></div>
+            <div class="bp-item-stage" id="bpStage${i}">в очікуванні</div>`;
+        list.appendChild(item);
+    });
+}
+
+function bpSetItem(i, state, stageText, article) {
+    const item  = document.getElementById('bpItem' + i);
+    const dot   = document.getElementById('bpDot' + i);
+    const stage = document.getElementById('bpStage' + i);
+    const art   = document.getElementById('bpArticle' + i);
+    item.className = 'bp-item ' + (state || '');
+    dot.textContent = state === 'done' ? '✓' : state === 'error' ? '✕' : String(i + 1);
+    if (stageText) stage.textContent = stageText;
+    if (article)   art.textContent   = article;
+}
+
+function bpSetOverall(done, total) {
+    document.getElementById('bpOverallLabel').textContent = `${done} / ${total} товарів оброблено`;
+    document.getElementById('bpOverallBar').style.width = (total ? (done / total * 100) : 0) + '%';
+}
+
+function cancelBatch() {
+    batchCancelled = true;
+    setBatchStatus('⛔ Скасовується після поточного товару...', '');
+    document.getElementById('bpCancelBtn').disabled = true;
+}
+
+const STAGE_LABELS = ['Парсинг', 'Опис УКР/РУС', 'SEO-ключі', 'Назва', 'Запис у таблицю'];
+
+// ─── CORE: ОБРОБКА ОДНОГО ТОВАРУ ─────────────────────────────────────────────
+async function processProduct(source, managerNotes, noBrand, onStage, isCancelled) {
+    const isUrl = typeof source === 'string';
+    const url   = isUrl ? source : (source.label || '');
+    const result = { ok: false, article: '', url, nameUA: '', nameRU: '', descUA: '', descRU: '', seoUA: '', seoRU: '' };
+
+    let pageText;
+    if (isUrl) {
+        onStage(0, 'active', '⏳ Завантажую сторінку товару...');
+        pageText = await fetchPageText(url);
+        if (isCancelled()) { result.error = 'cancelled'; return result; }
+        if (!pageText) { onStage(0, 'error', '❌ Не вдалося прочитати сторінку'); result.error = 'fetch_failed'; return result; }
+        onStage(0, 'done');
+        result.article = extractArticle(pageText);
+    } else {
+        onStage(0, 'active', '⏳ Готую дані з файлу...');
+        pageText = source.text;
+        result.article = source.article || '—';
+        onStage(0, 'done');
+    }
+
+    // Опис УКР
+    onStage(1, 'active', '⏳ Генерую HTML-опис (УКР)...');
+    const ua = await callServer(buildPrompt(pageText, managerNotes, noBrand));
+    if (isCancelled()) { result.error = 'cancelled'; return result; }
+    if (!ua.ok) { onStage(1, 'error', '❌ Помилка генерації УКР'); result.error = 'desc_ua_failed'; return result; }
+
+    // Опис РУС
+    onStage(1, 'active', '⏳ Перекладаю опис (РУС)...');
+    const ru = await callServer(buildTranslateDescPrompt(ua.text, noBrand));
+    if (isCancelled()) { result.error = 'cancelled'; return result; }
+    if (!ru.ok) { onStage(1, 'error', '❌ Помилка перекладу РУС'); result.error = 'desc_ru_failed'; return result; }
+
+    result.descUA = KLONDAIK_STYLES + ua.text;
+    result.descRU = KLONDAIK_STYLES + ru.text;
+    onStage(1, 'done');
+
+    // SEO УКР
+    onStage(2, 'active', '⏳ Генерую SEO-ключі (УКР)...');
+    const seoUa = await callServer(buildSEOPrompt(ua.text, noBrand));
+    if (isCancelled()) { result.error = 'cancelled'; return result; }
+    if (seoUa.ok) result.seoUA = seoUa.text;
+
+    // SEO РУС
+    onStage(2, 'active', '⏳ Перекладаю SEO-ключі (РУС)...');
+    const seoRu = await callServer(buildTranslateSEOPrompt(result.seoUA));
+    if (isCancelled()) { result.error = 'cancelled'; return result; }
+    if (seoRu.ok) result.seoRU = seoRu.text;
+    onStage(2, 'done');
+
+    // Назва
+    onStage(3, 'active', '⏳ Генерую найменування...');
+    const nameRes = await callServer(buildNamePrompt(ua.text, result.seoUA, managerNotes, noBrand));
+    if (isCancelled()) { result.error = 'cancelled'; return result; }
+    if (nameRes.ok) {
+        const lines = nameRes.text.split('\n');
+        result.nameUA = (lines.find(l => l.startsWith('UA:')) || '').replace('UA:', '').trim().replace(/["«»""]/g, '');
+        result.nameRU = (lines.find(l => l.startsWith('RU:')) || '').replace('RU:', '').trim().replace(/["«»""]/g, '');
+        onStage(3, 'done');
+    } else {
+        onStage(3, 'error', '⚠️ Помилка генерації назви');
+    }
+
+    // Збереження
+    onStage(4, 'active', '⏳ Зберігаю до Google Таблиці...');
+    try {
+        await fetch(SHEETS_URL, {
+            method: 'POST', mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({
+                article: result.article, url,
+                nameUA: result.nameUA, nameRU: result.nameRU,
+                descUA: result.descUA, descRU: result.descRU,
+                seoUA:  result.seoUA,  seoRU:  result.seoRU,
+            })
+        });
+        onStage(4, 'done');
+    } catch (e) { onStage(4, 'error', '⚠️ Помилка запису до таблиці'); }
+
+    result.ok = true;
+    return result;
+}
+
+// ─── АВТО-РЕЖИМ (одиночний товар) ────────────────────────────────────────────
+async function runAuto() {
+    const url = document.getElementById('link').value.trim();
+    if (!url)                   { setStatus('⚠️ Вставте посилання на товар!', 'err'); return; }
+    if (!url.startsWith('http')){ setStatus('⚠️ Посилання має починатися з http://', 'err'); return; }
+
+    autoCancelled = false;
+    lockAll(true);
+    apReset(); apShow();
+    document.getElementById('apCancelBtn').disabled = false;
+    clearResults(); setStatus('');
+
+    const managerNotes = document.getElementById('managerNotes').value.trim();
+
+    const onStage = (idx, state, msg) => {
+        apSetStep(idx, state);
+        if (msg) apSetMsg(msg);
+        apSetBar(Math.min(100, (idx + (state === 'done' ? 1 : 0.4)) * 20));
+    };
+
+    const res = await processProduct(url, managerNotes, false, onStage, () => autoCancelled);
+
+    if (autoCancelled) { apSetMsg('⛔ Авто-режим скасовано'); setStatus('⛔ Скасовано.', ''); lockAll(false); return; }
+    if (!res.ok) { setStatus('❌ Помилка обробки товару: ' + (res.error || 'unknown'), 'err'); lockAll(false); return; }
+
+    showLastResultInMainFields(res);
+    apSetMsg('✅ Все готово! Дані збережено до таблиці.');
+    setStatus(`✅ Авто-режим завершено! Артикул: ${res.article}`, 'ok');
+    lockAll(false);
+    document.getElementById('seoBtn').disabled  = false;
+    document.getElementById('nameBtn').disabled = false;
+    document.getElementById('saveBtn').disabled = false;
+}
+
+// ─── ПАКЕТНА ОБРОБКА — СПИСОК URL ────────────────────────────────────────────
+async function runBatch() {
+    const raw  = document.getElementById('batchLinks').value;
+    const urls = parseBatchLinks(raw);
+    if (!urls.length) { setBatchStatus('⚠️ Додайте хоча б одне коректне посилання!', 'err'); return; }
+
+    batchCancelled = false;
+    lockAll(true);
+    document.getElementById('bpCancelBtn').disabled = false;
+    bpRenderList(urls); bpSetOverall(0, urls.length); bpShow();
+    setBatchStatus(`⏳ Обробка ${urls.length} товарів...`, '');
+
+    const managerNotes = document.getElementById('managerNotes').value.trim();
+    let done = 0, errors = 0, lastOk = null;
+
+    for (let i = 0; i < urls.length; i++) {
+        if (batchCancelled) { bpSetItem(i, '', 'скасовано'); continue; }
+        bpSetItem(i, 'active', 'старт...');
+        const onStage = (si, state) => bpSetItem(i, state === 'error' ? 'error' : 'active', (state === 'error' ? '❌ ' : '⏳ ') + (STAGE_LABELS[si] || ''));
+        const res = await processProduct(urls[i], managerNotes, false, onStage, () => batchCancelled);
+        if (res.ok)                 { bpSetItem(i, 'done',  '✓ готово', res.article); done++; lastOk = res; }
+        else if (res.error === 'cancelled') { bpSetItem(i, '', 'скасовано'); }
+        else                        { bpSetItem(i, 'error', '✕ ' + res.error); errors++; }
+        bpSetOverall(i + 1, urls.length);
+        if (!batchCancelled && i < urls.length - 1) await new Promise(r => setTimeout(r, 1500));
+    }
+
+    if (lastOk) showLastResultInMainFields(lastOk);
+    if (batchCancelled)   setBatchStatus(`⛔ Скасовано. Успішно: ${done}, помилок: ${errors}, з ${urls.length}.`, '');
+    else if (!errors)     setBatchStatus(`✅ Готово! Усі ${done} товарів оброблено та збережено.`, 'ok');
+    else                  setBatchStatus(`⚠️ Завершено з помилками. Успішно: ${done}, помилок: ${errors}, з ${urls.length}.`, '');
+    lockAll(false);
+}
+
+// ─── ПАКЕТНА ОБРОБКА — ФАЙЛ ──────────────────────────────────────────────────
+async function runFileBatch() {
+    if (!fileRows.length) { setFileStatus('⚠️ Спочатку завантажте файл з товарами!', 'err'); return; }
+
+    batchCancelled = false;
+    lockAll(true);
+    document.getElementById('bpCancelBtn').disabled = false;
+
+    const items = fileRows.map(r => ({
+        type: 'text',
+        article: r.article,
+        text:    buildSourceTextFromRow(r),
+        label:   (r.article !== '—' ? r.article + ' — ' : '') + r.name
+    }));
+
+    bpRenderList(items.map(it => it.label));
+    bpSetOverall(0, items.length); bpShow();
+    setFileStatus(`⏳ Обробка ${items.length} товарів з файлу...`, '');
+
+    const managerNotes = document.getElementById('managerNotes').value.trim();
+    let done = 0, errors = 0, lastOk = null;
+
+    for (let i = 0; i < items.length; i++) {
+        if (batchCancelled) { bpSetItem(i, '', 'скасовано'); continue; }
+        bpSetItem(i, 'active', 'старт...');
+        const onStage = (si, state) => bpSetItem(i, state === 'error' ? 'error' : 'active', (state === 'error' ? '❌ ' : '⏳ ') + (STAGE_LABELS[si] || ''));
+        const res = await processProduct(items[i], managerNotes, false, onStage, () => batchCancelled);
+        if (res.ok)                 { bpSetItem(i, 'done',  '✓ готово', res.article); done++; lastOk = res; }
+        else if (res.error === 'cancelled') { bpSetItem(i, '', 'скасовано'); }
+        else                        { bpSetItem(i, 'error', '✕ ' + res.error); errors++; }
+        bpSetOverall(i + 1, items.length);
+        if (!batchCancelled && i < items.length - 1) await new Promise(r => setTimeout(r, 1500));
+    }
+
+    if (lastOk) showLastResultInMainFields(lastOk);
+    if (batchCancelled)   setFileStatus(`⛔ Скасовано. Успішно: ${done}, помилок: ${errors}, з ${items.length}.`, '');
+    else if (!errors)     setFileStatus(`✅ Готово! Усі ${done} товарів з файлу оброблено та збережено.`, 'ok');
+    else                  setFileStatus(`⚠️ Завершено з помилками. Успішно: ${done}, помилок: ${errors}, з ${items.length}.`, '');
+    lockAll(false);
+}
+
+// ─── FILE IMPORT ──────────────────────────────────────────────────────────────
+function onFileSelected(evt) {
+    const file = evt.target.files[0];
+    if (!file) return;
+    document.getElementById('fileSelected').classList.add('visible');
+    document.getElementById('fileSelectedName').textContent = file.name;
+    setFileStatus('⏳ Читаю файл...', '');
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data     = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const sheet    = workbook.Sheets[workbook.SheetNames[0]];
+            const rows     = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+            fileRows = parseFileRows(rows);
+            renderFilePreview(fileRows);
+            document.getElementById('fileBtn').disabled = fileRows.length === 0;
+            document.getElementById('fileCount').style.display = 'block';
+            document.getElementById('fileCount').textContent = fileRows.length + ' товарів знайдено у файлі';
+            setFileStatus(fileRows.length ? '✅ Файл прочитано. Перевірте перегляд нижче.' : '⚠️ Не знайдено жодного рядка з назвою товару.', fileRows.length ? 'ok' : 'err');
+        } catch (err) { setFileStatus('❌ Помилка читання файлу: ' + err.message, 'err'); }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function clearFile() {
+    fileRows = [];
+    document.getElementById('fileInput').value = '';
+    document.getElementById('fileSelected').classList.remove('visible');
+    document.getElementById('fileCount').style.display = 'none';
+    document.getElementById('filePreviewWrap').style.display = 'none';
+    document.getElementById('fileBtn').disabled = true;
+    setFileStatus('', '');
+}
+
+function parseFileRows(rows) {
+    if (!rows.length) return [];
+    let headerRowIdx = -1, colMap = {};
+    const wanted = {
+        article: ['артикул', 'sku', 'код'],
+        name:    ['наименование', 'найменування', 'назва', 'название', 'name'],
+        price:   ['ррц', 'цена', 'ціна', 'price'],
+        desc:    ['описание', 'опис', 'description']
+    };
+    for (let r = 0; r < Math.min(rows.length, 10); r++) {
+        const row = rows[r].map(c => String(c || '').toLowerCase().trim());
+        let matches = 0; const tempMap = {};
+        row.forEach((cell, idx) => {
+            for (const key in wanted) { if (wanted[key].some(w => cell.includes(w))) { tempMap[key] = idx; matches++; } }
+        });
+        if (matches >= 2) { headerRowIdx = r; colMap = tempMap; break; }
+    }
+    if (headerRowIdx === -1) return [];
+    const result = [];
+    for (let r = headerRowIdx + 1; r < rows.length; r++) {
+        const row  = rows[r]; if (!row || !row.length) continue;
+        const name = colMap.name !== undefined ? String(row[colMap.name] ?? '').trim() : '';
+        if (!name) continue;
+        result.push({
+            article:     colMap.article !== undefined ? String(row[colMap.article] ?? '').trim() : '—',
+            name,
+            price:       colMap.price !== undefined ? String(row[colMap.price] ?? '').trim() : '',
+            description: colMap.desc  !== undefined ? String(row[colMap.desc]  ?? '').trim() : '',
+        });
+    }
+    return result;
+}
+
+function renderFilePreview(rows) {
+    const wrap = document.getElementById('filePreviewWrap');
+    const body = document.getElementById('filePreviewBody');
+    body.innerHTML = '';
+    if (!rows.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = 'block';
+    rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="col-article">${escapeHtml(r.article)}</td><td class="col-name">${escapeHtml(r.name)}</td><td>${escapeHtml(r.price)}</td><td>${escapeHtml((r.description || '').slice(0, 80))}</td>`;
+        body.appendChild(tr);
+    });
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+}
+
+// ─── SHOW LAST RESULT ─────────────────────────────────────────────────────────
+function showLastResultInMainFields(res) {
+    clearResults();
+    showArticle(res.article);
+    document.getElementById('resUA').value = res.descUA; showBlock('blockUA');
+    document.getElementById('resRU').value = res.descRU; showBlock('blockRU');
+    if (res.seoUA) { document.getElementById('seoUA').value = res.seoUA; showBlock('blockSEO-UA'); }
+    if (res.seoRU) { document.getElementById('seoRU').value = res.seoRU; showBlock('blockSEO-RU'); }
+    if (res.nameUA || res.nameRU) {
+        document.getElementById('nameUA').value = res.nameUA;
+        document.getElementById('nameRU').value = res.nameRU;
+        document.getElementById('nameSectionHeader').classList.add('visible');
+        showBlock('blockNameUA'); showBlock('blockNameRU');
+    }
+}
+
+// ─── РУЧНІ КНОПКИ (одиночний режим) ──────────────────────────────────────────
 async function generate(noBrand) {
     const url = document.getElementById('link').value.trim();
-    if (!url) { setStatus('⚠️ Вставте посилання на товар!', 'err'); return; }
+    if (!url)                    { setStatus('⚠️ Вставте посилання на товар!', 'err'); return; }
     if (!url.startsWith('http')) { setStatus('⚠️ Посилання має починатися з http://', 'err'); return; }
 
     _noBrandMode = noBrand;
     const managerNotes = document.getElementById('managerNotes').value.trim();
     const modeLabel = noBrand ? ' [БЕЗ БРЕНДА]' : '';
 
-    document.getElementById('genBtn').disabled    = true;
+    document.getElementById('genBtn').disabled     = true;
     document.getElementById('noBrandBtn').disabled = true;
-    document.getElementById('seoBtn').disabled    = true;
-    document.getElementById('nameBtn').disabled   = true;
-    document.getElementById('saveBtn').disabled   = true;
-    ['blockUA','blockRU','blockSEO-UA','blockSEO-RU','blockNameUA','blockNameRU'].forEach(hideBlock);
-    document.getElementById('nameSectionHeader').classList.remove('visible');
-    ['resUA','resRU','seoUA','seoRU','nameUA','nameRU'].forEach(id => document.getElementById(id).value = '');
-    showArticle('');
+    document.getElementById('autoBtn').disabled    = true;
+    document.getElementById('seoBtn').disabled     = true;
+    document.getElementById('nameBtn').disabled    = true;
+    document.getElementById('saveBtn').disabled    = true;
+    clearResults(); setStatus('');
 
     setStatus('⏳ Парсинг сторінки товару...', '');
     const pageText = await fetchPageText(url);
     if (!pageText) {
         setStatus('❌ Не вдалося зчитати дані з сайту.', 'err');
-        document.getElementById('genBtn').disabled    = false;
+        document.getElementById('genBtn').disabled     = false;
         document.getElementById('noBrandBtn').disabled = false;
+        document.getElementById('autoBtn').disabled    = false;
         return;
     }
 
@@ -876,30 +1384,23 @@ async function generate(noBrand) {
         document.getElementById('resUA').value = KLONDAIK_STYLES + ua.text;
         showBlock('blockUA');
         setStatus(`⏳ Перекладаю опис на РУС${modeLabel}...`, '');
-
         const ru = await callServer(buildTranslateDescPrompt(ua.text, noBrand));
         if (ru.ok) {
             document.getElementById('resRU').value = KLONDAIK_STYLES + ru.text;
             showBlock('blockRU');
             document.getElementById('seoBtn').disabled = false;
             setStatus(`✅ Описи готові${modeLabel}! Артикул: ${currentArticle}. Наступний крок — SEO-ключі.`, 'ok');
-        } else {
-            setStatus('⚠️ УКР готово, але сталася помилка при перекладі РУС.', '');
-            document.getElementById('seoBtn').disabled = false;
-        }
-    } else {
-        setStatus('❌ Помилка при генерації опису.', 'err');
-    }
+        } else { setStatus('⚠️ УКР готово, але сталася помилка при перекладі РУС.', ''); document.getElementById('seoBtn').disabled = false; }
+    } else { setStatus('❌ Помилка при генерації опису.', 'err'); }
 
-    document.getElementById('genBtn').disabled    = false;
+    document.getElementById('genBtn').disabled     = false;
     document.getElementById('noBrandBtn').disabled = false;
+    document.getElementById('autoBtn').disabled    = false;
 }
 
-// ─── SEO ──────────────────────────────────────────────────────────────────────
 async function generateSEO() {
     const textUA = document.getElementById('resUA').value;
     if (!textUA) { setStatus('⚠️ Спочатку згенеруйте опис!', 'err'); return; }
-
     const btn = document.getElementById('seoBtn');
     btn.disabled = true;
     document.getElementById('nameBtn').disabled = true;
@@ -908,75 +1409,51 @@ async function generateSEO() {
 
     const ua = await callServer(buildSEOPrompt(textUA, _noBrandMode));
     if (ua.ok) {
-        document.getElementById('seoUA').value = ua.text;
-        showBlock('blockSEO-UA');
+        document.getElementById('seoUA').value = ua.text; showBlock('blockSEO-UA');
         setStatus('⏳ Перекладаю SEO-ключі на РУС...', '');
-
         const ru = await callServer(buildTranslateSEOPrompt(ua.text));
         if (ru.ok) {
-            document.getElementById('seoRU').value = ru.text;
-            showBlock('blockSEO-RU');
+            document.getElementById('seoRU').value = ru.text; showBlock('blockSEO-RU');
             document.getElementById('nameBtn').disabled = false;
             document.getElementById('saveBtn').disabled = false;
             setStatus('✅ SEO-ключі готові! Тепер можна покращити найменування.', 'ok');
-        } else {
-            document.getElementById('nameBtn').disabled = false;
-            document.getElementById('saveBtn').disabled = false;
-            setStatus('⚠️ УКР SEO готово, але сталася помилка при перекладі РУС.', '');
-        }
-    } else {
-        setStatus('❌ Помилка при генерації SEO-ключів.', 'err');
-    }
+        } else { document.getElementById('nameBtn').disabled = false; document.getElementById('saveBtn').disabled = false; setStatus('⚠️ УКР SEO готово, але сталася помилка при перекладі РУС.', ''); }
+    } else { setStatus('❌ Помилка при генерації SEO-ключів.', 'err'); }
     btn.disabled = false;
 }
 
-// ─── NAME ─────────────────────────────────────────────────────────────────────
 async function generateName() {
     const textUA = document.getElementById('resUA').value;
     if (!textUA) { setStatus('⚠️ Спочатку згенеруйте опис!', 'err'); return; }
-
     const btn = document.getElementById('nameBtn');
     btn.disabled = true;
-    ['blockNameUA','blockNameRU'].forEach(hideBlock);
+    hideBlock('blockNameUA'); hideBlock('blockNameRU');
     document.getElementById('nameSectionHeader').classList.remove('visible');
-    setStatus('⏳ Генерую найменування (УКР)...', '');
+    setStatus('⏳ Генерую найменування...', '');
+    const seoUA        = document.getElementById('seoUA').value;
+    const managerNotes = document.getElementById('managerNotes').value.trim();
 
-    const seoUA = document.getElementById('seoUA').value;
-    const res = await callServer(buildNamePrompt(textUA, seoUA));
-
+    const res = await callServer(buildNamePrompt(textUA, seoUA, managerNotes, _noBrandMode));
     if (res.ok) {
         const lines = res.text.split('\n');
         const nameUA = (lines.find(l => l.startsWith('UA:')) || '').replace('UA:', '').trim().replace(/["«»""]/g, '');
+        const nameRU = (lines.find(l => l.startsWith('RU:')) || '').replace('RU:', '').trim().replace(/["«»""]/g, '');
         document.getElementById('nameUA').value = nameUA;
+        document.getElementById('nameRU').value = nameRU;
         document.getElementById('nameSectionHeader').classList.add('visible');
-        showBlock('blockNameUA');
-
-        if (nameUA) {
-            setStatus('⏳ Перекладаю найменування на РУС...', '');
-            const resRU = await callServer(buildTranslateNamePrompt(nameUA));
-            if (resRU.ok) {
-                const ruLines = resRU.text.split('\n');
-                const nameRU = (ruLines.find(l => l.startsWith('RU:')) || '').replace('RU:', '').trim().replace(/["«»""]/g, '');
-                document.getElementById('nameRU').value = nameRU;
-                showBlock('blockNameRU');
-            }
-        }
+        showBlock('blockNameUA'); showBlock('blockNameRU');
         setStatus('✅ Найменування покращено!', 'ok');
-    } else {
-        setStatus('❌ Помилка при генерації назви.', 'err');
-    }
+    } else { setStatus('❌ Помилка при генерації назви.', 'err'); }
     btn.disabled = false;
 }
 
-// ─── SAVE TO SHEETS ───────────────────────────────────────────────────────────
 async function saveToSheets() {
     const btn = document.getElementById('saveBtn');
     btn.disabled = true;
     setStatus('⏳ Зберігаю в таблицю...', '');
     try {
         await fetch(SHEETS_URL, {
-            method: 'POST',
-            mode: 'no-cors',
+            method: 'POST', mode: 'no-cors',
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 article: currentArticle,
@@ -990,9 +1467,7 @@ async function saveToSheets() {
             })
         });
         setStatus('✅ Збережено в Google Таблицю!', 'ok');
-    } catch (e) {
-        setStatus('❌ Помилка збереження.', 'err');
-    }
+    } catch (e) { setStatus('❌ Помилка збереження.', 'err'); }
     btn.disabled = false;
 }
 
@@ -1017,18 +1492,14 @@ const chipMap = {
 function insertChip(k) {
     const notes = document.getElementById('managerNotes');
     notes.value += (notes.value.length > 0 && !notes.value.endsWith('\n') ? '\n' : '') + (chipMap[k] || k);
-    notes.focus();
-    onNotesChange();
+    notes.focus(); onNotesChange();
 }
 function onNotesChange() {
     const val = document.getElementById('managerNotes').value;
     document.getElementById('notesBadge').style.display = val.length > 0 ? 'inline' : 'none';
     document.getElementById('notesChars').textContent = val.length + ' символів';
 }
-function clearNotes() {
-    document.getElementById('managerNotes').value = '';
-    onNotesChange();
-}
+function clearNotes() { document.getElementById('managerNotes').value = ''; onNotesChange(); }
 </script>
 </body>
 </html>
