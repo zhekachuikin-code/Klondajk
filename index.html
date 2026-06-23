@@ -827,6 +827,15 @@ async function callServer(prompt) {
     } catch (e) { return { ok: false, text: '' }; }
 }
 
+async function callServerWithRetry(prompt, maxAttempts = 3, delayMs = 2000) {
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const res = await callServer(prompt);
+        if (res.ok && res.text && res.text.trim().length > 0) return res;
+        if (attempt < maxAttempts) await new Promise(r => setTimeout(r, delayMs * attempt));
+    }
+    return { ok: false, text: '' };
+}
+
 function extractArticle(pageText) {
     const re = /(?:артикул|арт(?:икул)?\.?|код товару|код товара|article|sku|item\s*(?:no|num|#|code))[:\s#]+([A-Za-zА-Яа-яЁёІіЇїЄє0-9][-A-Za-zА-Яа-яЁёІіЇїЄє0-9_.\/]{1,30})/gi;
     re.lastIndex = 0;
@@ -1212,16 +1221,25 @@ async function processProduct(source, managerNotes, noBrand, onStage, isCancelle
 
     // SEO УКР
     onStage(2, 'active', '⏳ Генерую SEO-ключі (УКР)...');
-    const seoUa = await callServer(buildSEOPrompt(ua.text, noBrand));
+    const seoUa = await callServerWithRetry(buildSEOPrompt(ua.text, noBrand));
     if (isCancelled()) { result.error = 'cancelled'; return result; }
-    if (seoUa.ok) result.seoUA = seoUa.text;
-
-    // SEO РУС
-    onStage(2, 'active', '⏳ Перекладаю SEO-ключі (РУС)...');
-    const seoRu = await callServer(buildTranslateSEOPrompt(result.seoUA));
+    if (seoUa.ok && seoUa.text.trim()) {
+        result.seoUA = seoUa.text;
+        // SEO РУС — тільки якщо є що перекладати
+        onStage(2, 'active', '⏳ Перекладаю SEO-ключі (РУС)...');
+        const seoRu = await callServerWithRetry(buildTranslateSEOPrompt(result.seoUA));
+        if (isCancelled()) { result.error = 'cancelled'; return result; }
+        if (seoRu.ok && seoRu.text.trim()) {
+            result.seoRU = seoRu.text;
+            onStage(2, 'done');
+        } else {
+            onStage(2, 'error', '⚠️ SEO UA є, переклад РУС не вдався (збережено UA)');
+        }
+    } else {
+        onStage(2, 'error', '❌ Не вдалося згенерувати SEO-ключі (3 спроби)');
+        // НЕ зупиняємо обробку — продовжуємо до назви та збереження
+    }
     if (isCancelled()) { result.error = 'cancelled'; return result; }
-    if (seoRu.ok) result.seoRU = seoRu.text;
-    onStage(2, 'done');
 
     // Назва
     onStage(3, 'active', '⏳ Генерую найменування...');
@@ -1568,18 +1586,18 @@ async function generateSEO() {
     document.getElementById('saveBtn').disabled = true;
     setStatus('⏳ Генерую SEO-ключі (УКР)...', '');
 
-    const ua = await callServer(buildSEOPrompt(textUA, _noBrandMode));
-    if (ua.ok) {
+    const ua = await callServerWithRetry(buildSEOPrompt(textUA, _noBrandMode));
+    if (ua.ok && ua.text.trim()) {
         document.getElementById('seoUA').value = ua.text; showBlock('blockSEO-UA');
         setStatus('⏳ Перекладаю SEO-ключі на РУС...', '');
-        const ru = await callServer(buildTranslateSEOPrompt(ua.text));
-        if (ru.ok) {
+        const ru = await callServerWithRetry(buildTranslateSEOPrompt(ua.text));
+        if (ru.ok && ru.text.trim()) {
             document.getElementById('seoRU').value = ru.text; showBlock('blockSEO-RU');
             document.getElementById('nameBtn').disabled = false;
             document.getElementById('saveBtn').disabled = false;
             setStatus('✅ SEO-ключі готові! Тепер можна покращити найменування.', 'ok');
-        } else { document.getElementById('nameBtn').disabled = false; document.getElementById('saveBtn').disabled = false; setStatus('⚠️ УКР SEO готово, але сталася помилка при перекладі РУС.', ''); }
-    } else { setStatus('❌ Помилка при генерації SEO-ключів.', 'err'); }
+        } else { document.getElementById('nameBtn').disabled = false; document.getElementById('saveBtn').disabled = false; setStatus('⚠️ УКР SEO готово, але переклад РУС не вдався (3 спроби).', ''); }
+    } else { setStatus('❌ Помилка при генерації SEO-ключів (3 спроби вичерпано).', 'err'); }
     btn.disabled = false;
 }
 
