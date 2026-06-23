@@ -351,7 +351,18 @@
         .bp-item.error .bp-item-stage { color: #f87171; }
         .bp-item-article { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--accent); white-space: nowrap; }
 
-        /* ── NOTES CARD ── */
+        .bp-download-btn {
+            display: none; align-items: center; justify-content: center; gap: 8px;
+            padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer;
+            background: linear-gradient(135deg, #16a34a, #15803d);
+            color: #fff; font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 700;
+            letter-spacing: 0.5px; transition: opacity 0.2s, transform 0.15s;
+            width: 100%; margin-top: 4px;
+        }
+        .bp-download-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+        .bp-download-btn.visible { display: flex; }
+
+
         .notes-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         .notes-header {
             display: flex; align-items: center; justify-content: space-between;
@@ -577,6 +588,9 @@
             <div class="bp-overall-label" id="bpOverallLabel">0 / 0 товарів оброблено</div>
             <div class="bp-overall-bar-wrap"><div class="bp-overall-bar" id="bpOverallBar"></div></div>
             <div class="bp-list" id="bpList"></div>
+            <button class="bp-download-btn" id="bpDownloadBtn" onclick="downloadBatchXLSX()">
+                ⬇️ Завантажити результати (.xlsx)
+            </button>
         </div>
 
         <!-- ── ПРИМІТКИ ── -->
@@ -733,6 +747,7 @@ let _noBrandMode   = false;
 let autoCancelled  = false;
 let batchCancelled = false;
 let fileRows       = [];
+let batchResults   = [];   // збір результатів для XLSX
 
 // ─── MODE TABS ─────────────────────────────────────────────────────────────────
 function switchMode(mode) {
@@ -1276,14 +1291,53 @@ async function runAuto() {
 }
 
 // ─── ПАКЕТНА ОБРОБКА — СПИСОК URL ────────────────────────────────────────────
+// ─── XLSX EXPORT ─────────────────────────────────────────────────────────────
+function downloadBatchXLSX() {
+    if (!batchResults.length) return;
+
+    const rows = batchResults.map(r => ({
+        'Артикул':       r.article || '—',
+        'URL':           r.url     || '—',
+        'Назва RU':      r.nameRU  || '',
+        'Назва UA':      r.nameUA  || '',
+        'SEO-ключі RU':  r.seoRU   || '',
+        'SEO-ключі UA':  r.seoUA   || '',
+        'Опис RU':       r.descRU  || '',
+        'Опис UA':       r.descUA  || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+
+    // Ширини стовпців
+    ws['!cols'] = [
+        { wch: 14 }, // Артикул
+        { wch: 50 }, // URL
+        { wch: 45 }, // Назва UA
+        { wch: 45 }, // Назва RU
+        { wch: 80 }, // Опис UA
+        { wch: 80 }, // Опис RU
+        { wch: 60 }, // SEO UA
+        { wch: 60 }, // SEO RU
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Результати');
+
+    const date = new Date();
+    const stamp = `${date.getFullYear()}${String(date.getMonth()+1).padStart(2,'0')}${String(date.getDate()).padStart(2,'0')}_${String(date.getHours()).padStart(2,'0')}${String(date.getMinutes()).padStart(2,'0')}`;
+    XLSX.writeFile(wb, `klondajk_batch_${stamp}.xlsx`);
+}
+
 async function runBatch() {
     const raw  = document.getElementById('batchLinks').value;
     const urls = parseBatchLinks(raw);
     if (!urls.length) { setBatchStatus('⚠️ Додайте хоча б одне коректне посилання!', 'err'); return; }
 
+    batchResults = [];
     batchCancelled = false;
     lockAll(true);
     document.getElementById('bpCancelBtn').disabled = false;
+    document.getElementById('bpDownloadBtn').classList.remove('visible');
     bpRenderList(urls); bpSetOverall(0, urls.length); bpShow();
     setBatchStatus(`⏳ Обробка ${urls.length} товарів...`, '');
 
@@ -1295,7 +1349,7 @@ async function runBatch() {
         bpSetItem(i, 'active', 'старт...');
         const onStage = (si, state) => bpSetItem(i, state === 'error' ? 'error' : 'active', (state === 'error' ? '❌ ' : '⏳ ') + (STAGE_LABELS[si] || ''));
         const res = await processProduct(urls[i], managerNotes, false, onStage, () => batchCancelled);
-        if (res.ok)                 { bpSetItem(i, 'done',  '✓ готово', res.article); done++; lastOk = res; }
+        if (res.ok)                 { bpSetItem(i, 'done',  '✓ готово', res.article); done++; lastOk = res; batchResults.push(res); }
         else if (res.error === 'cancelled') { bpSetItem(i, '', 'скасовано'); }
         else                        { bpSetItem(i, 'error', '✕ ' + res.error); errors++; }
         bpSetOverall(i + 1, urls.length);
@@ -1303,6 +1357,7 @@ async function runBatch() {
     }
 
     if (lastOk) showLastResultInMainFields(lastOk);
+    if (batchResults.length) document.getElementById('bpDownloadBtn').classList.add('visible');
     if (batchCancelled)   setBatchStatus(`⛔ Скасовано. Успішно: ${done}, помилок: ${errors}, з ${urls.length}.`, '');
     else if (!errors)     setBatchStatus(`✅ Готово! Усі ${done} товарів оброблено та збережено.`, 'ok');
     else                  setBatchStatus(`⚠️ Завершено з помилками. Успішно: ${done}, помилок: ${errors}, з ${urls.length}.`, '');
@@ -1313,9 +1368,11 @@ async function runBatch() {
 async function runFileBatch() {
     if (!fileRows.length) { setFileStatus('⚠️ Спочатку завантажте файл з товарами!', 'err'); return; }
 
+    batchResults = [];
     batchCancelled = false;
     lockAll(true);
     document.getElementById('bpCancelBtn').disabled = false;
+    document.getElementById('bpDownloadBtn').classList.remove('visible');
 
     const items = fileRows.map(r => ({
         type: 'text',
@@ -1336,7 +1393,7 @@ async function runFileBatch() {
         bpSetItem(i, 'active', 'старт...');
         const onStage = (si, state) => bpSetItem(i, state === 'error' ? 'error' : 'active', (state === 'error' ? '❌ ' : '⏳ ') + (STAGE_LABELS[si] || ''));
         const res = await processProduct(items[i], managerNotes, false, onStage, () => batchCancelled);
-        if (res.ok)                 { bpSetItem(i, 'done',  '✓ готово', res.article); done++; lastOk = res; }
+        if (res.ok)                 { bpSetItem(i, 'done',  '✓ готово', res.article); done++; lastOk = res; batchResults.push(res); }
         else if (res.error === 'cancelled') { bpSetItem(i, '', 'скасовано'); }
         else                        { bpSetItem(i, 'error', '✕ ' + res.error); errors++; }
         bpSetOverall(i + 1, items.length);
@@ -1344,6 +1401,7 @@ async function runFileBatch() {
     }
 
     if (lastOk) showLastResultInMainFields(lastOk);
+    if (batchResults.length) document.getElementById('bpDownloadBtn').classList.add('visible');
     if (batchCancelled)   setFileStatus(`⛔ Скасовано. Успішно: ${done}, помилок: ${errors}, з ${items.length}.`, '');
     else if (!errors)     setFileStatus(`✅ Готово! Усі ${done} товарів з файлу оброблено та збережено.`, 'ok');
     else                  setFileStatus(`⚠️ Завершено з помилками. Успішно: ${done}, помилок: ${errors}, з ${items.length}.`, '');
