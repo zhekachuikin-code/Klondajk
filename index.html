@@ -362,6 +362,22 @@
         .bp-download-btn:hover { opacity: 0.88; transform: translateY(-1px); }
         .bp-download-btn.visible { display: flex; }
 
+        /* ── BATCH CONTROLS (pause / stop) ── */
+        .bp-controls { display: flex; gap: 8px; }
+        .bp-ctrl-btn {
+            padding: 5px 14px; border: none; border-radius: 6px;
+            font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700;
+            cursor: pointer; letter-spacing: 0.3px;
+            transition: opacity 0.15s, transform 0.1s;
+        }
+        .bp-ctrl-btn:hover:not(:disabled) { opacity: 0.82; transform: translateY(-1px); }
+        .bp-ctrl-btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+        .bp-pause-btn          { background: linear-gradient(135deg, #f0c44a, #c9a020); color: #0d0f12; }
+        .bp-pause-btn.resuming { background: linear-gradient(135deg, #3ddc84, #25a85e); color: #0d0f12; }
+        .bp-stop-btn           { background: linear-gradient(135deg, #f87171, #dc2626); color: #fff; }
+        .bp-item.paused { border-color: rgba(240,196,74,0.45); background: rgba(240,196,74,0.05); }
+        .bp-item.paused .bp-item-stage { color: var(--accent); }
+
 
         .notes-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         .notes-header {
@@ -583,7 +599,10 @@
         <div id="batchProgress">
             <div class="bp-header">
                 <span class="bp-title">📦 Пакетна обробка</span>
-                <button class="ap-cancel" id="bpCancelBtn" onclick="cancelBatch()">✕ Скасувати</button>
+                <div class="bp-controls">
+                    <button class="bp-ctrl-btn bp-pause-btn" id="bpPauseBtn" onclick="togglePauseBatch()">⏸ Пауза</button>
+                    <button class="bp-ctrl-btn bp-stop-btn"  id="bpStopBtn"  onclick="stopBatch()">⏹ Стоп</button>
+                </div>
             </div>
             <div class="bp-overall-label" id="bpOverallLabel">0 / 0 товарів оброблено</div>
             <div class="bp-overall-bar-wrap"><div class="bp-overall-bar" id="bpOverallBar"></div></div>
@@ -742,12 +761,14 @@ function fixBuyButton(html) {
 }
 
 // ─── STATE ─────────────────────────────────────────────────────────────────────
-let currentArticle = '';
-let _noBrandMode   = false;
-let autoCancelled  = false;
-let batchCancelled = false;
-let fileRows       = [];
-let batchResults   = [];   // збір результатів для XLSX
+let currentArticle    = '';
+let _noBrandMode      = false;
+let autoCancelled     = false;
+let batchCancelled    = false;
+let batchPaused       = false;
+let batchPauseResolve = null;
+let fileRows          = [];
+let batchResults      = [];   // збір результатів для XLSX
 
 // ─── MODE TABS ─────────────────────────────────────────────────────────────────
 function switchMode(mode) {
@@ -1017,16 +1038,26 @@ ${text}`;
 }
 
 function buildTranslateSEOPrompt(uaKeys) {
+    const keyList = uaKeys.split(',').map(k => k.trim()).filter(Boolean);
+    const count = keyList.length;
+    const numbered = keyList.map((k, i) => `${i + 1}. ${k}`).join('\n');
     return `Переклади наступні SEO-ключові слова з УКРАЇНСЬКОЇ на РОСІЙСЬКУ мову.
 
+КРИТИЧНО ВАЖЛИВО: на вході рівно ${count} ключів — на виході ОБОВ'ЯЗКОВО рівно ${count} ключів. Жоден не можна пропустити або об'єднати з іншим.
+
 ПРАВИЛА:
-- Зберігай точний зміст кожного ключа
+- Переклади кожен пронумерований рядок окремо — один до одного
 - Зберігай природні російські формулювання (як люди реально шукають)
-- Не додавай і не прибирай запити — переклади рівно стільки, скільки є
+- НЕ пропускай жодного ключа — кожному рядку відповідає окремий переклад
 - Виводь лише переклад через кому з пробілом, один суцільний рядок, без нумерації, без пояснень, без крапки в кінці
 
-УКРАЇНСЬКІ КЛЮЧІ:
-${uaKeys}`;
+ПРОНУМЕРОВАНИЙ СПИСОК (${count} ключів):
+${numbered}`;
+}
+
+function countSeoKeys(str) {
+    if (!str || !str.trim()) return 0;
+    return str.split(',').map(k => k.trim()).filter(Boolean).length;
 }
 
 function buildNamePrompt(textUA, seoUA, managerNotes, noBrand) {
@@ -1165,10 +1196,50 @@ function bpSetOverall(done, total) {
     document.getElementById('bpOverallBar').style.width = (total ? (done / total * 100) : 0) + '%';
 }
 
-function cancelBatch() {
+function togglePauseBatch() {
+    batchPaused = !batchPaused;
+    const btn = document.getElementById('bpPauseBtn');
+    if (batchPaused) {
+        btn.textContent = '▶ Продовжити';
+        btn.classList.add('resuming');
+        setBatchStatus('⏸ Пауза після поточного товару...', '');
+    } else {
+        btn.textContent = '⏸ Пауза';
+        btn.classList.remove('resuming');
+        setBatchStatus('▶ Обробка відновлена...', '');
+        if (batchPauseResolve) { batchPauseResolve(); batchPauseResolve = null; }
+    }
+}
+
+function stopBatch() {
     batchCancelled = true;
-    setBatchStatus('⛔ Скасовується після поточного товару...', '');
-    document.getElementById('bpCancelBtn').disabled = true;
+    // якщо зараз на паузі — розблокуємо, щоб цикл міг вийти
+    if (batchPaused && batchPauseResolve) {
+        batchPaused = false;
+        batchPauseResolve();
+        batchPauseResolve = null;
+    }
+    document.getElementById('bpPauseBtn').disabled = true;
+    document.getElementById('bpStopBtn').disabled  = true;
+    setBatchStatus('⏹ Зупиняється після поточного товару...', '');
+}
+
+async function waitIfPaused() {
+    if (batchPaused) {
+        await new Promise(resolve => { batchPauseResolve = resolve; });
+    }
+}
+
+function bpResetControls() {
+    batchPaused = false; batchPauseResolve = null;
+    const pb = document.getElementById('bpPauseBtn');
+    pb.disabled = false; pb.textContent = '⏸ Пауза'; pb.classList.remove('resuming');
+    document.getElementById('bpStopBtn').disabled = false;
+}
+
+function bpDisableControls() {
+    document.getElementById('bpPauseBtn').disabled = true;
+    document.getElementById('bpStopBtn').disabled  = true;
 }
 
 const STAGE_LABELS = ['Парсинг', 'Опис УКР/РУС', 'SEO-ключі', 'Назва', 'Запис у таблицю'];
@@ -1216,11 +1287,18 @@ async function processProduct(source, managerNotes, noBrand, onStage, isCancelle
     if (isCancelled()) { result.error = 'cancelled'; return result; }
     if (seoUa.ok) result.seoUA = seoUa.text;
 
-    // SEO РУС
-    onStage(2, 'active', '⏳ Перекладаю SEO-ключі (РУС)...');
-    const seoRu = await callServer(buildTranslateSEOPrompt(result.seoUA));
-    if (isCancelled()) { result.error = 'cancelled'; return result; }
-    if (seoRu.ok) result.seoRU = seoRu.text;
+    // SEO РУС — лише якщо є УКР ключі
+    if (result.seoUA) {
+        onStage(2, 'active', '⏳ Перекладаю SEO-ключі (РУС)...');
+        let seoRu = await callServer(buildTranslateSEOPrompt(result.seoUA));
+        if (isCancelled()) { result.error = 'cancelled'; return result; }
+        // Retry if key count mismatch
+        if (seoRu.ok && countSeoKeys(seoRu.text) !== countSeoKeys(result.seoUA)) {
+            const seoRu2 = await callServer(buildTranslateSEOPrompt(result.seoUA));
+            if (!isCancelled() && seoRu2.ok) seoRu = seoRu2;
+        }
+        if (seoRu.ok) result.seoRU = seoRu.text;
+    }
     onStage(2, 'done');
 
     // Назва
@@ -1345,9 +1423,9 @@ async function runBatch() {
     batchResults = [];
     batchCancelled = false;
     lockAll(true);
-    document.getElementById('bpCancelBtn').disabled = false;
     document.getElementById('bpDownloadBtn').classList.remove('visible');
     bpRenderList(urls); bpSetOverall(0, urls.length); bpShow();
+    bpResetControls();
     setBatchStatus(`⏳ Обробка ${urls.length} товарів...`, '');
 
     const managerNotes = document.getElementById('managerNotes').value.trim();
@@ -1358,16 +1436,24 @@ async function runBatch() {
         bpSetItem(i, 'active', 'старт...');
         const onStage = (si, state) => bpSetItem(i, state === 'error' ? 'error' : 'active', (state === 'error' ? '❌ ' : '⏳ ') + (STAGE_LABELS[si] || ''));
         const res = await processProduct(urls[i], managerNotes, false, onStage, () => batchCancelled);
-        if (res.ok)                 { bpSetItem(i, 'done',  '✓ готово', res.article); done++; lastOk = res; batchResults.push(res); }
+        if (res.ok)                       { bpSetItem(i, 'done',  '✓ готово', res.article); done++; lastOk = res; batchResults.push(res); }
         else if (res.error === 'cancelled') { bpSetItem(i, '', 'скасовано'); }
-        else                        { bpSetItem(i, 'error', '✕ ' + res.error); errors++; }
+        else                              { bpSetItem(i, 'error', '✕ ' + res.error); errors++; }
         bpSetOverall(i + 1, urls.length);
-        if (!batchCancelled && i < urls.length - 1) await new Promise(r => setTimeout(r, 1500));
+        if (!batchCancelled && i < urls.length - 1) {
+            await new Promise(r => setTimeout(r, 1500));
+            if (!batchCancelled) {
+                bpSetItem(i, 'paused', '⏸ пауза...');
+                await waitIfPaused();
+                if (!batchCancelled) bpSetItem(i, 'done', '✓ готово');
+            }
+        }
     }
 
     if (lastOk) showLastResultInMainFields(lastOk);
     if (batchResults.length) document.getElementById('bpDownloadBtn').classList.add('visible');
-    if (batchCancelled)   setBatchStatus(`⛔ Скасовано. Успішно: ${done}, помилок: ${errors}, з ${urls.length}.`, '');
+    bpDisableControls();
+    if (batchCancelled)   setBatchStatus(`⏹ Зупинено. Успішно: ${done}, помилок: ${errors}, з ${urls.length}.`, '');
     else if (!errors)     setBatchStatus(`✅ Готово! Усі ${done} товарів оброблено та збережено.`, 'ok');
     else                  setBatchStatus(`⚠️ Завершено з помилками. Успішно: ${done}, помилок: ${errors}, з ${urls.length}.`, '');
     lockAll(false);
@@ -1380,7 +1466,6 @@ async function runFileBatch() {
     batchResults = [];
     batchCancelled = false;
     lockAll(true);
-    document.getElementById('bpCancelBtn').disabled = false;
     document.getElementById('bpDownloadBtn').classList.remove('visible');
 
     const items = fileRows.map(r => ({
@@ -1392,6 +1477,7 @@ async function runFileBatch() {
 
     bpRenderList(items.map(it => it.label));
     bpSetOverall(0, items.length); bpShow();
+    bpResetControls();
     setFileStatus(`⏳ Обробка ${items.length} товарів з файлу...`, '');
 
     const managerNotes = document.getElementById('managerNotes').value.trim();
@@ -1402,16 +1488,24 @@ async function runFileBatch() {
         bpSetItem(i, 'active', 'старт...');
         const onStage = (si, state) => bpSetItem(i, state === 'error' ? 'error' : 'active', (state === 'error' ? '❌ ' : '⏳ ') + (STAGE_LABELS[si] || ''));
         const res = await processProduct(items[i], managerNotes, false, onStage, () => batchCancelled);
-        if (res.ok)                 { bpSetItem(i, 'done',  '✓ готово', res.article); done++; lastOk = res; batchResults.push(res); }
+        if (res.ok)                       { bpSetItem(i, 'done',  '✓ готово', res.article); done++; lastOk = res; batchResults.push(res); }
         else if (res.error === 'cancelled') { bpSetItem(i, '', 'скасовано'); }
-        else                        { bpSetItem(i, 'error', '✕ ' + res.error); errors++; }
+        else                              { bpSetItem(i, 'error', '✕ ' + res.error); errors++; }
         bpSetOverall(i + 1, items.length);
-        if (!batchCancelled && i < items.length - 1) await new Promise(r => setTimeout(r, 1500));
+        if (!batchCancelled && i < items.length - 1) {
+            await new Promise(r => setTimeout(r, 1500));
+            if (!batchCancelled) {
+                bpSetItem(i, 'paused', '⏸ пауза...');
+                await waitIfPaused();
+                if (!batchCancelled) bpSetItem(i, 'done', '✓ готово');
+            }
+        }
     }
 
     if (lastOk) showLastResultInMainFields(lastOk);
     if (batchResults.length) document.getElementById('bpDownloadBtn').classList.add('visible');
-    if (batchCancelled)   setFileStatus(`⛔ Скасовано. Успішно: ${done}, помилок: ${errors}, з ${items.length}.`, '');
+    bpDisableControls();
+    if (batchCancelled)   setFileStatus(`⏹ Зупинено. Успішно: ${done}, помилок: ${errors}, з ${items.length}.`, '');
     else if (!errors)     setFileStatus(`✅ Готово! Усі ${done} товарів з файлу оброблено та збережено.`, 'ok');
     else                  setFileStatus(`⚠️ Завершено з помилками. Успішно: ${done}, помилок: ${errors}, з ${items.length}.`, '');
     lockAll(false);
@@ -1581,7 +1675,13 @@ async function generateSEO() {
     if (ua.ok) {
         document.getElementById('seoUA').value = ua.text; showBlock('blockSEO-UA');
         setStatus('⏳ Перекладаю SEO-ключі на РУС...', '');
-        const ru = await callServer(buildTranslateSEOPrompt(ua.text));
+        let ru = await callServer(buildTranslateSEOPrompt(ua.text));
+        // Retry if key count mismatch
+        if (ru.ok && countSeoKeys(ru.text) !== countSeoKeys(ua.text)) {
+            setStatus('⏳ Перекладаю SEO-ключі на РУС (повтор — кількість не збіглась)...', '');
+            const ru2 = await callServer(buildTranslateSEOPrompt(ua.text));
+            if (ru2.ok) ru = ru2;
+        }
         if (ru.ok) {
             document.getElementById('seoRU').value = ru.text; showBlock('blockSEO-RU');
             document.getElementById('nameBtn').disabled = false;
