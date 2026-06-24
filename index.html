@@ -747,10 +747,11 @@ const KLONDAIK_STYLES = `<promhtml>
 .features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:15px;margin-top:15px;}
 .feature-card{background:rgba(255,255,255,0.4);padding:15px;border-radius:8px;text-align:center;border:1px solid rgba(255,255,255,0.6);box-shadow:0 2px 8px rgba(0,0,0,0.05);}
 .feature-card strong{display:block;color:#2b6cb0;font-size:16px;font-weight:700;margin-bottom:5px;}
-.quick-specs-bar{display:flex;flex-wrap:wrap;justify-content:space-around;background-color:#e6fffa;border:1px solid #b2f5ea;border-radius:10px;padding:10px 0;margin:20px 0;box-shadow:0 4px 8px rgba(0,0,0,0.05);}
-.quick-specs-bar .spec-item{text-align:center;padding:5px 15px;flex:1;min-width:100px;}
-.quick-specs-bar .spec-item span{display:block;font-size:12px;color:#4a5568;margin-bottom:3px;text-transform:uppercase;font-weight:500;}
-.quick-specs-bar .spec-item strong{font-size:18px;color:#28a745;font-weight:800;}
+.quick-specs-bar{display:flex;flex-wrap:wrap;gap:8px;background-color:#e6fffa;border:1px solid #b2f5ea;border-radius:10px;padding:12px 16px;margin:20px 0;box-shadow:0 4px 8px rgba(0,0,0,0.05);}
+.quick-specs-bar .spec-item{display:flex;flex-direction:column;gap:3px;padding:8px 16px;flex:1;min-width:120px;border-right:1px solid rgba(0,0,0,0.07);}
+.quick-specs-bar .spec-item:last-child{border-right:none;}
+.quick-specs-bar .spec-item span{display:block;font-size:11px;color:#6b7280;text-transform:uppercase;letter-spacing:0.6px;font-weight:500;}
+.quick-specs-bar .spec-item strong{display:block;font-size:14px;color:#1a202c;font-weight:600;}
 @media(max-width:600px){.wrapper{padding:15px;}.section{padding:15px;margin-bottom:25px;}.quick-specs-bar{display:block;}}
 </style>`;
 
@@ -903,7 +904,8 @@ ${noBrandBlock}
 </div>
 
 <div class="quick-specs-bar">
-  [Всі ключові числові/технічні характеристики зі сторінки у вигляді spec-item]
+  [Всі ключові числові/технічні характеристики зі сторінки. Кожна у форматі:
+  <div class="spec-item"><span>НАЗВА ПАРАМЕТРУ</span><strong>Значення</strong></div>]
 </div>
 
 <div class="section">
