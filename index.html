@@ -482,10 +482,14 @@
             </div>
             <div class="guide-step">
                 <div class="step-num">5</div>
-                <div class="step-body"><h4>📦 Список посилань</h4><p>Вставте кілька URL (кожне з нового рядка) — обробка пройде по черзі.</p></div>
+                <div class="step-body"><h4>🗂️ Група товарів</h4><p>Вставте посилання на сторінку групи/категорії — AI знайде назви всіх товарів у групі та напише один узагальнюючий опис на всю групу.</p></div>
             </div>
             <div class="guide-step">
                 <div class="step-num">6</div>
+                <div class="step-body"><h4>📦 Список посилань</h4><p>Вставте кілька URL (кожне з нового рядка) — обробка пройде по черзі.</p></div>
+            </div>
+            <div class="guide-step">
+                <div class="step-num">7</div>
                 <div class="step-body"><h4>📁 Файл XLS/CSV</h4><p>Завантажте прайс із колонками: Артикул, Найменування, РРЦ, Опис.</p></div>
             </div>
         </div>
@@ -508,6 +512,7 @@
         <div class="card">
             <div class="mode-tabs">
                 <div class="mode-tab active" id="tabSingle" onclick="switchMode('single')">🔗 Один товар</div>
+                <div class="mode-tab" id="tabGroup"  onclick="switchMode('group')">🗂️ Група товарів</div>
                 <div class="mode-tab" id="tabBatch"  onclick="switchMode('batch')">📦 Список посилань</div>
                 <div class="mode-tab" id="tabFile"   onclick="switchMode('file')">📁 Файл (XLS/CSV)</div>
             </div>
@@ -533,6 +538,41 @@
                        target="_blank" class="btn btn-ghost">📋 Відкрити таблицю</a>
                 </div>
                 <div id="status"></div>
+            </div>
+
+            <!-- ─── Група товарів ─── -->
+            <div class="mode-panel" id="panelGroup">
+                <div class="card-label">Посилання на сторінку групи/категорії товарів</div>
+                <div class="input-row">
+                    <input type="text" id="groupLink" placeholder="https://prom.ua/ua/c1234567-nazva-grupi.html">
+                </div>
+                <div class="action-row">
+                    <button class="btn btn-primary" id="groupBtn"        onclick="runGroup(false)">🗂️ Написати опис групи</button>
+                    <button class="btn btn-nobrand" id="groupNoBrandBtn" onclick="runGroup(true)">🚫 БЕЗ БРЕНДА</button>
+                </div>
+                <div id="groupStatus"></div>
+
+                <div class="preview-table-wrap" id="groupNamesWrap" style="display:none;max-height:160px;">
+                    <div class="card-label" style="margin:14px 0 6px;">Знайдені товари в групі</div>
+                    <textarea id="groupNames" readonly style="width:100%;min-height:110px;max-height:160px;font-family:'JetBrains Mono', monospace;font-size:11.5px;line-height:1.6;padding:10px 12px;border:1px solid var(--border2);border-radius:var(--radius);resize:vertical;background:var(--bg);color:#9ab3d4;outline:none;"></textarea>
+                </div>
+
+                <div class="results-grid" style="margin-top:14px;">
+                    <div class="lang-block" id="blockGroupUA">
+                        <div class="lang-header ua">
+                            <div class="lang-name"><span class="dot-blue"></span>🇺🇦 Опис групи (УКР)</div>
+                            <button class="copy-btn" onclick="copyText('groupDescUA', this)">Скопіювати</button>
+                        </div>
+                        <textarea id="groupDescUA" readonly></textarea>
+                    </div>
+                    <div class="lang-block" id="blockGroupRU">
+                        <div class="lang-header ru">
+                            <div class="lang-name"><span class="dot-green"></span>🇷🇺 Опис групи (РУС) — переклад</div>
+                            <button class="copy-btn" onclick="copyText('groupDescRU', this)">Скопіювати</button>
+                        </div>
+                        <textarea id="groupDescRU" readonly></textarea>
+                    </div>
+                </div>
             </div>
 
             <!-- ─── Список посилань ─── -->
@@ -755,7 +795,7 @@ const KLONDAIK_STYLES = `<promhtml>
 @media(max-width:600px){.wrapper{padding:15px;}.section{padding:15px;margin-bottom:25px;}.quick-specs-bar{display:block;}}
 </style>`;
 
-// ─── POST-PROCESS: завжди href="#" у кнопці "Купити зараз" ────────────────────
+// ─── POST-PROCESS: завжди href="#" у кнопці "Перейти до вибору" ───────────────
 function fixBuyButton(html) {
     return html.replace(/<a\s+class="buy-now-button"\s+href="[^"]*"/g,
                         '<a class="buy-now-button" href="#"');
@@ -773,7 +813,7 @@ let batchResults      = [];   // збір результатів для XLSX
 
 // ─── MODE TABS ─────────────────────────────────────────────────────────────────
 function switchMode(mode) {
-    ['single','batch','file'].forEach(m => {
+    ['single','group','batch','file'].forEach(m => {
         document.getElementById('tab' + m.charAt(0).toUpperCase() + m.slice(1)).classList.toggle('active', m === mode);
         document.getElementById('panel' + m.charAt(0).toUpperCase() + m.slice(1)).classList.toggle('active', m === mode);
     });
@@ -886,7 +926,7 @@ ${noBrandBlock}
    <div class="brand-logo-floating">
      <img src="https://images.prom.ua/4287919640_w250_h100_klondajk.jpg" alt="Клондайк">
    </div>
-6. Кнопка "Купити зараз": href ЗАВЖДИ строго "#" — ніяких інших посилань.
+6. Кнопка "Перейти до вибору": href ЗАВЖДИ строго "#" — ніяких інших посилань.
 
 СТРУКТУРА HTML-ОПИСУ (заповни реальними даними з джерела):
 <div class="wrapper">
@@ -941,7 +981,7 @@ ${noBrandBlock}
   </div>
 </div>
 
-<div style="text-align:left;margin-top:30px;padding-left:20px;"><a class="buy-now-button" href="#">Купити зараз</a></div>
+<div style="text-align:left;margin-top:30px;padding-left:20px;"><a class="buy-now-button" href="#">Перейти до вибору</a></div>
 
 <div class="brand-logo-floating">
   <img src="https://images.prom.ua/4287919640_w250_h100_klondajk.jpg" alt="Клондайк">
@@ -961,13 +1001,110 @@ ${noBrandNote}
 • Перекладай ДОСЛІВНО — зберігай зміст, факти, структуру.
 • НЕ додавай і НЕ прибирай інформацію.
 • Зберігай всю HTML-розмітку, класи, теги — змінюй лише текст.
-• Кнопку "Купити зараз" заміни на "Купить сейчас".
+• Кнопку "Перейти до вибору" заміни на "Перейти к выбору".
 • Весь текст — виключно РОСІЙСЬКОЮ мовою.
 • Логотип Клондайк залиш без змін.
 • Виводь лише голий HTML без markdown-обгорток.
 
 ВИХІДНЕ УКРАЇНСЬКЕ ОПИСАННЯ:
 ${uaHtml}`;
+}
+
+// ─── ГРУПА ТОВАРІВ: пошук назв + узагальнюючий опис ──────────────────────────
+function buildGroupNamesPrompt(pageText) {
+    return `Це текст сторінки групи/категорії товарів інтернет-магазину (може містити багато позицій, меню, футер тощо).
+
+ЗАВДАННЯ: знайди і випиши назви ВСІХ окремих товарів (позицій асортименту), які реально перелічені на цій сторінці як товари групи.
+
+ПРАВИЛА:
+- Кожна назва товару — з нового рядка.
+- Без нумерації, без цін, без зайвих символів, без пояснень і коментарів.
+- Прибери дублікати (однакові назви лишай один раз).
+- НЕ включай пункти меню, категорії навігації, назви розділів сайту — тільки реальні товари.
+- Якщо назва містить розмір/артикул/варіант виконання — залиш як є.
+
+ТЕКСТ СТОРІНКИ:
+${pageText}`;
+}
+
+function buildGroupDescPrompt(pageText, namesList, managerNotes, noBrand) {
+    const noBrandBlock = noBrand ? `
+⛔ РЕЖИМ «БЕЗ БРЕНДА» — СТРОГО ОБОВ'ЯЗКОВО
+Визнач назву бренду/виробника з тексту сторінки.
+ПОВНІСТЮ ВИКЛЮЧИ цю назву з усього тексту опису:
+• НЕ згадуй бренд ніде: ні в заголовку, ні в характеристиках, ні в FAQ.
+• Замість назви бренду використовуй нейтральні слова: «виробник», «ця група товарів», «даний асортимент».
+` : '';
+    const notesBlock = managerNotes ? `
+ДОДАТКОВА ІНФОРМАЦІЯ ВІД МЕНЕДЖЕРА (ОБОВ'ЯЗКОВО ДОДАТИ):
+Органічно впиши цю інформацію в текст:
+"${managerNotes}"
+` : '';
+
+    return `Ти — досвідчений SEO-копірайтер інтернет-магазину Клондайк.
+
+Тобі потрібно написати ОДИН узагальнюючий опис для ВСІЄЇ ГРУПИ (категорії) товарів, а не для одного окремого товару. Опис має підходити для розміщення на сторінці групи/категорії та охоплювати весь перелічений асортимент.
+
+СПИСОК ТОВАРІВ, ЯКІ ВХОДЯТЬ У ГРУПУ:
+${namesList}
+
+ДОДАТКОВИЙ КОНТЕКСТ ЗІ СТОРІНКИ (для деталей, характеристик, застосування):
+${pageText}
+${notesBlock}
+${noBrandBlock}
+ГОЛОВНІ ПРАВИЛА:
+1. Пиши ТІЛЬКИ УКРАЇНСЬКОЮ мовою.
+2. Опис узагальнюючий — про ВЕСЬ асортимент групи, а не про один товар. Не зациклюйся на одній позиції.
+3. НЕ вигадуй характеристики — використовуй ТІЛЬКИ дані з джерела та списку товарів.
+4. Виводь ТІЛЬКИ готовий HTML без markdown-обгорток (без \`\`\`html).
+5. Для жирного шрифту використовуй ТІЛЬКИ <strong></strong>, ніяких ** **.
+6. Логотип Клондайк в кінці ОБОВ'ЯЗКОВИЙ:
+   <div class="brand-logo-floating">
+     <img src="https://images.prom.ua/4287919640_w250_h100_klondajk.jpg" alt="Клондайк">
+   </div>
+7. Кнопка "Перейти до вибору": href ЗАВЖДИ строго "#" — ніяких інших посилань.
+
+СТРУКТУРА HTML-ОПИСУ (заповни реальними даними):
+<div class="wrapper">
+
+<div class="section">
+  <h1 class="section-title">[Загальна назва групи/категорії товарів]</h1>
+  <p>[Вступний абзац 4-6 речень: що це за група товарів, для кого, де застосовується, чим корисна]</p>
+</div>
+
+<div class="section">
+  <h2 class="section-title">Асортимент групи</h2>
+  <ul class="ck-list">
+    [Перелік основних видів/варіантів товарів групи на основі списку товарів вище, кожен пункт — окремий <li>]
+  </ul>
+</div>
+
+<div class="section">
+  <h2 class="section-title">Переваги</h2>
+  <div class="features-grid">
+    [Мінімум 4-6 feature-card з реальними перевагами цієї групи товарів]
+  </div>
+</div>
+
+<div class="attention-block">
+  <h2>💡 Порада майстра</h2>
+  <p>[Практична порада, як обрати потрібний товар саме з цієї групи, 2-4 речення]</p>
+</div>
+
+<div class="section">
+  <h2 class="section-title">Часті запитання</h2>
+  <div class="ck-faq">
+    [Мінімум 3-4 питання-відповіді у форматі ck-faq-item, актуальні для всієї групи товарів]
+  </div>
+</div>
+
+<div style="text-align:left;margin-top:30px;padding-left:20px;"><a class="buy-now-button" href="#">Перейти до вибору</a></div>
+
+<div class="brand-logo-floating">
+  <img src="https://images.prom.ua/4287919640_w250_h100_klondajk.jpg" alt="Клондайк">
+</div>
+
+</div>`;
 }
 
 function buildSEOPrompt(text, noBrand) {
@@ -1700,6 +1837,64 @@ async function saveToSheets() {
         setStatus('✅ Збережено в Google Таблицю!', 'ok');
     } catch (e) { setStatus('❌ Помилка збереження.', 'err'); }
     btn.disabled = false;
+}
+
+// ─── ГРУПА ТОВАРІВ (одна сторінка категорії → один узагальнюючий опис) ───────
+function setGroupStatus(msg, type) { const el = document.getElementById('groupStatus'); el.textContent = msg; el.className = type || ''; }
+function lockGroup(lock) {
+    document.getElementById('groupBtn').disabled        = lock;
+    document.getElementById('groupNoBrandBtn').disabled = lock;
+}
+
+async function runGroup(noBrand) {
+    const url = document.getElementById('groupLink').value.trim();
+    if (!url)                    { setGroupStatus('⚠️ Вставте посилання на сторінку групи товарів!', 'err'); return; }
+    if (!url.startsWith('http')) { setGroupStatus('⚠️ Посилання має починатися з http://', 'err'); return; }
+
+    const modeLabel = noBrand ? ' [БЕЗ БРЕНДА]' : '';
+    lockGroup(true);
+    hideBlock('blockGroupUA'); hideBlock('blockGroupRU');
+    document.getElementById('groupNamesWrap').style.display = 'none';
+    document.getElementById('groupNames').value = '';
+    document.getElementById('groupDescUA').value = '';
+    document.getElementById('groupDescRU').value = '';
+    setGroupStatus('⏳ Завантажую сторінку групи товарів...', '');
+
+    const pageText = await fetchPageText(url);
+    if (!pageText) { setGroupStatus('❌ Не вдалося зчитати дані з сайту.', 'err'); lockGroup(false); return; }
+
+    setGroupStatus('⏳ Визначаю товари, що входять у групу...', '');
+    const namesRes = await callServer(buildGroupNamesPrompt(pageText));
+    if (!namesRes.ok || !namesRes.text.trim()) {
+        setGroupStatus('❌ Не вдалося визначити перелік товарів групи.', 'err');
+        lockGroup(false);
+        return;
+    }
+    const namesList  = namesRes.text.trim();
+    const namesCount = namesList.split('\n').map(s => s.trim()).filter(Boolean).length;
+    document.getElementById('groupNames').value = namesList;
+    document.getElementById('groupNamesWrap').style.display = '';
+
+    const managerNotes = document.getElementById('managerNotes').value.trim();
+
+    setGroupStatus(`⏳ Пишу узагальнюючий опис групи (УКР)${modeLabel}...`, '');
+    const ua = await callServer(buildGroupDescPrompt(pageText, namesList, managerNotes, noBrand));
+    if (!ua.ok) { setGroupStatus('❌ Помилка при генерації опису групи.', 'err'); lockGroup(false); return; }
+
+    document.getElementById('groupDescUA').value = KLONDAIK_STYLES + fixBuyButton(ua.text);
+    showBlock('blockGroupUA');
+
+    setGroupStatus(`⏳ Перекладаю опис групи на РУС${modeLabel}...`, '');
+    const ru = await callServer(buildTranslateDescPrompt(ua.text, noBrand));
+    if (ru.ok) {
+        document.getElementById('groupDescRU').value = KLONDAIK_STYLES + fixBuyButton(ru.text);
+        showBlock('blockGroupRU');
+        setGroupStatus(`✅ Готово! Товарів у групі: ${namesCount}.`, 'ok');
+    } else {
+        setGroupStatus(`⚠️ УКР опис готовий, але сталася помилка при перекладі РУС. Товарів у групі: ${namesCount}.`, '');
+    }
+
+    lockGroup(false);
 }
 
 // ─── COPY ─────────────────────────────────────────────────────────────────────
