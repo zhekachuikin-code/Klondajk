@@ -1027,35 +1027,20 @@ ${uaHtml}`;
 function buildGroupNamesPrompt(pageText) {
     return `Це текст сторінки групи/категорії товарів інтернет-магазину (може містити багато позицій, меню, футер тощо).
 
-ЗАВДАННЯ: знайди і випиши назви ВСІХ окремих позицій, які реально перелічені на цій сторінці як елементи групи.
-Це можуть бути:
-• назви КОНКРЕТНИХ ТОВАРІВ (якщо сторінка — прямий перелік товарів), АБО
-• назви ПІДГРУП/ПІДКАТЕГОРІЙ (якщо сторінка — перелік розділів, кожен з яких веде до своїх товарів).
+ЗАВДАННЯ: знайди і випиши назви ВСІХ окремих товарів (позицій асортименту), які реально перелічені на цій сторінці як товари групи.
 
 ПРАВИЛА:
-- Кожна назва — з нового рядка.
+- Кожна назва товару — з нового рядка.
 - Без нумерації, без цін, без зайвих символів, без пояснень і коментарів.
 - Прибери дублікати (однакові назви лишай один раз).
-- НЕ включай пункти головного меню сайту, службові посилання (кошик, вхід, контакти тощо) — тільки реальні позиції асортименту (товари або підкатегорії).
+- НЕ включай пункти меню, категорії навігації, назви розділів сайту — тільки реальні товари.
 - Якщо назва містить розмір/артикул/варіант виконання — залиш як є.
 
 ТЕКСТ СТОРІНКИ:
 ${pageText}`;
 }
 
-function buildGroupTypePrompt(namesList) {
-    return `Ось перелік позицій, знайдених на сторінці групи товарів інтернет-магазину:
-
-${namesList}
-
-ЗАВДАННЯ: визнач, чим ЗДЕБІЛЬШОГО є ці позиції:
-• PRODUCTS — якщо це конкретні товари, готові до купівлі одиниці асортименту (з конкретними назвами моделей, типорозмірів, артикулів тощо);
-• SUBGROUPS — якщо це назви підгруп/підкатегорій, тобто розділів, кожен з яких у собі об'єднує кілька різних товарів (наприклад: "Труби гофровані", "Труби гладкі", "Фітинги та з'єднувачі" тощо).
-
-Дай відповідь ОДНИМ словом, без пояснень і знаків пунктуації: PRODUCTS або SUBGROUPS.`;
-}
-
-function buildGroupDescPrompt(pageText, namesList, managerNotes, noBrand, isSubgroups) {
+function buildGroupDescPrompt(pageText, namesList, managerNotes, noBrand) {
     const noBrandBlock = noBrand ? `
 ⛔ РЕЖИМ «БЕЗ БРЕНДА» — СТРОГО ОБОВ'ЯЗКОВО
 Визнач назву бренду/виробника з тексту сторінки.
@@ -1069,25 +1054,13 @@ function buildGroupDescPrompt(pageText, namesList, managerNotes, noBrand, isSubg
 "${managerNotes}"
 ` : '';
 
-    const levelBlock = isSubgroups ? `
-⚠️ ВАЖЛИВО — ЦЕ ГРУПА З ПІДГРУПАМИ, НЕ З ТОВАРАМИ НАПРЯМУ:
-Перелічені вище позиції — це НЕ конкретні товари, а ПІДГРУПИ/ПІДКАТЕГОРІЇ. Кожна підгрупа в собі об'єднує кілька різних товарів, яких ти зараз не бачиш.
-У цьому описі:
-• Розповідай про КОЖНУ підгрупу ЗАГАЛЬНО — що це за напрямок/тип товарів, для чого застосовується, чим одна підгрупа відрізняється від іншої.
-• СУВОРО ЗАБОРОНЕНО вигадувати або вказувати конкретні моделі, артикули, розміри чи технічні характеристики окремих товарів усередині підгруп — це буде зроблено окремо, пізніше, коли писатимемо опис на кожну підгрупу окремо.
-• Розділ "Асортимент групи" — це перелік ПІДГРУП з коротким описом напрямку кожної (1-2 речення на підгрупу), а НЕ перелік товарів.
-• FAQ і поради теж мають стосуватися вибору ПОТРІБНОЇ ПІДГРУПИ, а не конкретного товару.
-` : `
-Перелічені вище позиції — це конкретні товари групи. Розділ "Асортимент групи" повинен перелічувати основні види/варіанти товарів на основі цього списку.
-`;
-
     return `Ти — досвідчений SEO-копірайтер інтернет-магазину Клондайк.
 
 Тобі потрібно написати ОДИН узагальнюючий опис для ВСІЄЇ ГРУПИ (категорії) товарів, а не для одного окремого товару. Опис має підходити для розміщення на сторінці групи/категорії та охоплювати весь перелічений асортимент.
 
-СПИСОК ПОЗИЦІЙ, ЯКІ ВХОДЯТЬ У ГРУПУ:
+СПИСОК ТОВАРІВ, ЯКІ ВХОДЯТЬ У ГРУПУ:
 ${namesList}
-${levelBlock}
+
 ДОДАТКОВИЙ КОНТЕКСТ ЗІ СТОРІНКИ (для деталей, характеристик, застосування):
 ${pageText}
 ${notesBlock}
@@ -1948,16 +1921,11 @@ async function runGroup(noBrand) {
     document.getElementById('groupNames').value = namesList;
     document.getElementById('groupNamesWrap').style.display = '';
 
-    setGroupStatus('⏳ Визначаю тип позицій (товари чи підгрупи)...', '');
-    const typeRes = await callServer(buildGroupTypePrompt(namesList));
-    const isSubgroups = typeRes.ok && /SUBGROUP/i.test(typeRes.text || '');
-    const typeNote = isSubgroups ? 'підгрупи товарів' : 'конкретні товари';
-
     const managerNotes = document.getElementById('managerNotes').value.trim();
     const failNote = failedUrls.length ? ` (не вдалося зчитати: ${failedUrls.length})` : '';
 
-    setGroupStatus(`⏳ Пишу узагальнюючий опис групи (УКР)${modeLabel}... Виявлено: ${typeNote}`, '');
-    const ua = await callServer(buildGroupDescPrompt(combinedText, namesList, managerNotes, noBrand, isSubgroups));
+    setGroupStatus(`⏳ Пишу узагальнюючий опис групи (УКР)${modeLabel}...`, '');
+    const ua = await callServer(buildGroupDescPrompt(combinedText, namesList, managerNotes, noBrand));
     if (!ua.ok) { setGroupStatus('❌ Помилка при генерації опису групи.', 'err'); lockGroup(false); return; }
 
     document.getElementById('groupDescUA').value = KLONDAIK_STYLES + fixBuyButton(ua.text);
@@ -1968,9 +1936,9 @@ async function runGroup(noBrand) {
     if (ru.ok) {
         document.getElementById('groupDescRU').value = KLONDAIK_STYLES + fixBuyButton(ru.text);
         showBlock('blockGroupRU');
-        setGroupStatus(`✅ Готово! Сторінок оброблено: ${contextParts.length}/${urls.length}. Знайдено: ${dedupedNames.length} (${typeNote}).${failNote}`, 'ok');
+        setGroupStatus(`✅ Готово! Сторінок оброблено: ${contextParts.length}/${urls.length}. Товарів у групі: ${dedupedNames.length}.${failNote}`, 'ok');
     } else {
-        setGroupStatus(`⚠️ УКР опис готовий, але сталася помилка при перекладі РУС. Знайдено: ${dedupedNames.length} (${typeNote}).${failNote}`, '');
+        setGroupStatus(`⚠️ УКР опис готовий, але сталася помилка при перекладі РУС. Товарів у групі: ${dedupedNames.length}.${failNote}`, '');
     }
 
     lockGroup(false);
