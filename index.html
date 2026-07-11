@@ -939,7 +939,7 @@ ${noBrandBlock}
    <div class="brand-logo-floating">
      <img src="https://images.prom.ua/4287919640_w250_h100_klondajk.jpg" alt="Клондайк">
    </div>
-6. Кнопка "Перейти до вибору": href ЗАВЖДИ строго "#" — ніяких інших посилань.
+6. Кнопка "Купити зараз": href ЗАВЖДИ строго "#" — ніяких інших посилань.
 
 СТРУКТУРА HTML-ОПИСУ (заповни реальними даними з джерела):
 <div class="wrapper">
@@ -994,7 +994,7 @@ ${noBrandBlock}
   </div>
 </div>
 
-<div style="text-align:left;margin-top:30px;padding-left:20px;"><a class="buy-now-button" href="#">Перейти до вибору</a></div>
+<div style="text-align:left;margin-top:30px;padding-left:20px;"><a class="buy-now-button" href="#">Купити зараз</a></div>
 
 <div class="brand-logo-floating">
   <img src="https://images.prom.ua/4287919640_w250_h100_klondajk.jpg" alt="Клондайк">
@@ -1003,10 +1003,13 @@ ${noBrandBlock}
 </div>`;
 }
 
-function buildTranslateDescPrompt(uaHtml, noBrand) {
+function buildTranslateDescPrompt(uaHtml, noBrand, isGroup) {
     const noBrandNote = noBrand
         ? '\n⛔ РЕЖИМ «БЕЗ БРЕНДА»: в перекладі ПОВНІСТЮ ВИКЛЮЧИ назву бренду — замінюй нейтральними словами.\n'
         : '';
+    const buttonRule = isGroup
+        ? '• Кнопку "Перейти до вибору" заміни на "Перейти к выбору".'
+        : '• Кнопку "Купити зараз" заміни на "Купить сейчас".';
     return `Ти — професійний перекладач інтернет-магазину Клондайк.
 Переклади готове HTML-описання товару з УКРАЇНСЬКОЇ на РОСІЙСЬКУ мову.
 ${noBrandNote}
@@ -1014,7 +1017,7 @@ ${noBrandNote}
 • Перекладай ДОСЛІВНО — зберігай зміст, факти, структуру.
 • НЕ додавай і НЕ прибирай інформацію.
 • Зберігай всю HTML-розмітку, класи, теги — змінюй лише текст.
-• Кнопку "Перейти до вибору" заміни на "Перейти к выбору".
+${buttonRule}
 • Весь текст — виключно РОСІЙСЬКОЮ мовою.
 • Логотип Клондайк залиш без змін.
 • Виводь лише голий HTML без markdown-обгорток.
@@ -1932,7 +1935,7 @@ async function runGroup(noBrand) {
     showBlock('blockGroupUA');
 
     setGroupStatus(`⏳ Перекладаю опис групи на РУС${modeLabel}...`, '');
-    const ru = await callServer(buildTranslateDescPrompt(ua.text, noBrand));
+    const ru = await callServer(buildTranslateDescPrompt(ua.text, noBrand, true));
     if (ru.ok) {
         document.getElementById('groupDescRU').value = KLONDAIK_STYLES + fixBuyButton(ru.text);
         showBlock('blockGroupRU');
