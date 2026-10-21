@@ -223,6 +223,7 @@
         .toggle-item:hover { border-color: var(--green-dim); }
         .toggle-item.off { opacity: 0.45; }
         .toggle-item.off .ti-name { text-decoration: line-through; color: var(--text-muted); }
+        #tog-showphoto.off .ti-name { text-decoration: none; }
         .ti-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
         .ti-icon { font-size: 17px; flex-shrink: 0; }
         .ti-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -728,7 +729,7 @@
                 <div class="input-row">
                     <input type="text" id="manualImage" placeholder="https://images.prom.ua/....jpg — порожньо = заглушка"
                         data-guide-title="Фото товару"
-                        data-guide-text="Пряме посилання на зображення піде в головний блок опису. Якщо порожньо — підставиться заглушка.">
+                        data-guide-text="Пряме посилання на зображення піде в головний блок опису. Якщо порожньо — підставиться заглушка. Фото видиме в описі лише при увімкненому перемикачі «Показувати фото в описі» (за замовчуванням приховане).">
                 </div>
 
                 <div class="card-label" style="margin-top:14px;">Нотатки про товар (довільний текст)</div>
@@ -915,6 +916,20 @@
             </div>
         </div>
 
+        <!-- ── ПЕРЕМИКАЧ: фото в описі ── -->
+        <div class="toggle-item off" id="tog-showphoto" onclick="toggleShowPhoto()" style="max-width:340px;"
+            data-guide-title="🖼 Показувати фото в описі"
+            data-guide-text="За замовчуванням фото в описі приховане (display:none), блок лишається в коді. Увімкніть — і наступні згенеровані описи матимуть видиме фото. Вже готові описи не змінюються.">
+            <div class="ti-left">
+                <span class="ti-icon">🖼</span>
+                <div class="ti-text">
+                    <span class="ti-name">Показувати фото в описі</span>
+                    <span class="ti-hint">За замовчуванням приховане</span>
+                </div>
+            </div>
+            <div class="tswitch"></div>
+        </div>
+
         <!-- ── АВТО ПРОГРЕС ── -->
         <div id="autoProgress">
             <div class="ap-header">
@@ -1096,8 +1111,25 @@ const KLONDAIK_STYLES = `<promhtml>
 
 // ─── POST-PROCESS: завжди href="#" у кнопці "Перейти до вибору" ───────────────
 function fixBuyButton(html) {
-    return html.replace(/<a\s+class="buy-now-button"\s+href="[^"]*"/g,
-                        '<a class="buy-now-button" href="#"');
+    return fixPhotoBlock(html.replace(/<a\s+class="buy-now-button"\s+href="[^"]*"/g,
+                        '<a class="buy-now-button" href="#"'));
+}
+
+// ─── Видимість блоку з фото в описі ───────────────────────────────────────────
+// За замовчуванням фото приховане (display:none) — блок лишається в HTML,
+// щоб його можна було показати, просто прибравши цей стиль.
+let showPhoto = false;
+function isPhotoShown() { return showPhoto; }
+function toggleShowPhoto() {
+    showPhoto = !showPhoto;
+    document.getElementById('tog-showphoto').classList.toggle('off', !showPhoto);
+}
+// Детермінована пост-обробка: перший блок <div style="flex:1;min-width:300px;...">
+// (ліва колонка з фото) отримує/не отримує display:none незалежно від того,
+// що повернув ІІ. У груповому описі такого блоку немає — він не змінюється.
+function fixPhotoBlock(html) {
+    return html.replace(/<div\b[^>]*style="flex:1;\s*min-width:300px;[^"]*"[^>]*>/,
+        '<div class="ck-photo" style="flex:1;min-width:300px;' + (showPhoto ? '' : 'display:none;') + '">');
 }
 
 // ─── STATE ─────────────────────────────────────────────────────────────────────
@@ -1275,7 +1307,7 @@ ${noBrandBlock}
 <div class="wrapper">
 
 <div class="section" style="display:flex;align-items:center;gap:30px;flex-wrap:wrap;margin-bottom:30px;">
-  <div style="flex:1;min-width:300px;">
+  <div class="ck-photo" style="flex:1;min-width:300px;${isPhotoShown() ? '' : 'display:none;'}">
     ${hasNoUrl
         ? `<img src="${imgSrc}" alt="Фото товару" style="max-width:100%;border-radius:10px;">`
         : `[Головне зображення товару — використовуй реальний img src зі сторінки якщо є, інакше встав: <img src="https://images.prom.ua/7502610463_w1280_h1280_zaglushka_foto.jpeg?fresh=1" alt="Фото товару" style="max-width:100%;border-radius:10px;">]`}
