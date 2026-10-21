@@ -567,6 +567,9 @@
                 <div class="mode-tab" id="tabFile"   onclick="switchMode('file')"
                     data-guide-step="7" data-guide-title="📁 Файл XLS/CSV"
                     data-guide-text="Завантажте прайс із колонками: Артикул, Найменування, РРЦ, Опис.">📁 Файл (XLS/CSV)</div>
+                <div class="mode-tab" id="tabManual" onclick="switchMode('manual')"
+                    data-guide-title="✍️ Свій опис"
+                    data-guide-text="Генерація за нотатками, введеними вручну: назва, пара характеристик, будь-який неструктурований текст. AI складе повний опис, SEO та назву без вигадок.">✍️ Свій опис</div>
                 <div class="mode-tab" id="tabInsta"  onclick="switchMode('insta')"
                     data-guide-title="📸 Товар/пост Instagram"
                     data-guide-text="Створення рекламного банера/поста та підпису для Instagram і Facebook на основі сторінки товару.">📸 Товар/пост Instagram</div>
@@ -703,6 +706,68 @@
                        data-guide-text="Відкриває Google Таблицю, куди зберігаються усі згенеровані дані, в новій вкладці.">📋 Відкрити таблицю</a>
                 </div>
                 <div id="fileStatus"></div>
+            </div>
+
+            <!-- ─── Свій опис (ручні нотатки) ─── -->
+            <div class="mode-panel" id="panelManual">
+                <div class="card-label">Назва товару (необов'язково, але бажано)</div>
+                <div class="input-row">
+                    <input type="text" id="manualName" placeholder="Наприклад: Крісло розкладне Директор Лайт"
+                        data-guide-title="Назва товару"
+                        data-guide-text="Якщо вказати назву — AI відштовхуватиметься від неї. Якщо порожньо — візьме з нотаток.">
+                </div>
+
+                <div class="card-label" style="margin-top:14px;">Артикул (необов'язково — для запису в таблицю)</div>
+                <div class="input-row">
+                    <input type="text" id="manualArticle" placeholder="Порожньо = AI спробує знайти в нотатках, інакше «—»"
+                        data-guide-title="Артикул"
+                        data-guide-text="Потрібен для запису в Google Таблицю. Якщо не вказати — шукається в тексті нотаток.">
+                </div>
+
+                <div class="card-label" style="margin-top:14px;">Посилання на фото (необов'язково)</div>
+                <div class="input-row">
+                    <input type="text" id="manualImage" placeholder="https://images.prom.ua/....jpg — порожньо = заглушка"
+                        data-guide-title="Фото товару"
+                        data-guide-text="Пряме посилання на зображення піде в головний блок опису. Якщо порожньо — підставиться заглушка.">
+                </div>
+
+                <div class="card-label" style="margin-top:14px;">Нотатки про товар (довільний текст)</div>
+                <textarea id="manualNotes" oninput="onManualNotesChange()"
+                    placeholder="Просто накидайте все, що знаєте про товар: що це, розміри, матеріал, вага, навантаження, комплектація, для чого, переваги...&#10;Можна українською або російською, без форматування.&#10;&#10;Приклад:&#10;крісло складне, сталь d20, тканина оксфорд, до 120 кг, є підстаканник, чохол у комплекті, колір синій"
+                    style="width:100%;min-height:170px;max-height:360px;font-family:'JetBrains Mono', monospace;font-size:12px;line-height:1.65;padding:10px 12px;background:var(--bg);border:1px solid var(--border2);border-radius:var(--radius);color:var(--text);resize:vertical;outline:none;"
+                    data-guide-title="Нотатки"
+                    data-guide-text="AI використає ТІЛЬКИ ці факти й нічого не вигадуватиме. Чим більше даних — тим повніший опис. Примітки менеджера (бренд, акції) нижче теж враховуються."></textarea>
+                <div class="batch-hint" id="manualNotesCount">0 символів</div>
+
+                <div class="article-badge" id="m_articleBadge">
+                    <span class="article-badge-label">Артикул</span>
+                    <span class="article-badge-value" id="m_articleValue">—</span>
+                </div>
+                <div class="action-row">
+                    <button class="btn btn-auto"    id="m_autoBtn"    onclick="runManualAuto()"
+                        data-guide-title="⚡ Авто"
+                        data-guide-text="Весь цикл за нотатками: опис УКР+РУС → SEO → назва → запис у таблицю.">⚡ Авто</button>
+                    <button class="btn btn-primary" id="m_genBtn"     onclick="generateManual(false)"
+                        data-guide-title="Створити опис"
+                        data-guide-text="HTML-опис УКР + РУС за вашими нотатками. Далі можна згенерувати SEO → Назву → зберегти в таблицю.">✨ Створити опис</button>
+                    <button class="btn btn-nobrand" id="m_noBrandBtn" onclick="generateManual(true)"
+                        data-guide-title="🚫 БЕЗ БРЕНДА"
+                        data-guide-text="Той самий опис, але без згадки бренду/виробника.">🚫 БЕЗ БРЕНДА</button>
+                    <button class="btn btn-seo"     id="m_seoBtn"     onclick="generateSEO()"  disabled
+                        data-guide-title="SEO-ключі"
+                        data-guide-text="Активна після створення опису.">🔑 SEO-ключі</button>
+                    <button class="btn btn-name"    id="m_nameBtn"    onclick="generateName()" disabled
+                        data-guide-title="Покращити найменування"
+                        data-guide-text="SEO-назва на основі опису і ключів.">✦ Назва</button>
+                    <button class="btn btn-sheets"  id="m_saveBtn"    onclick="saveToSheets()" disabled
+                        data-guide-title="В таблицю"
+                        data-guide-text="Запише дані разом з артикулом (без посилання — його немає).">📊 В таблицю</button>
+                    <a href="https://docs.google.com/spreadsheets/d/1SFM1bSNCnKe4rU_J9xfQ2f7mfjx-5ku3ExkDuP13Obw/edit"
+                       target="_blank" class="btn btn-ghost"
+                       data-guide-title="📋 Відкрити таблицю"
+                       data-guide-text="Відкриває Google Таблицю в новій вкладці.">📋 Відкрити таблицю</a>
+                </div>
+                <div id="manualStatus" style="font-size:12px;color:var(--text-muted);min-height:16px;font-family:'JetBrains Mono', monospace;margin-top:10px;"></div>
             </div>
 
             <!-- ─── Товар/пост Instagram ─── -->
@@ -1037,6 +1102,7 @@ function fixBuyButton(html) {
 
 // ─── STATE ─────────────────────────────────────────────────────────────────────
 let currentArticle    = '';
+let currentSourceUrl  = null;   // null = брати з поля «Посилання»; '' = ручний режим (без URL)
 let _noBrandMode      = false;
 let autoCancelled     = false;
 let batchCancelled    = false;
@@ -1047,7 +1113,7 @@ let batchResults      = [];   // збір результатів для XLSX
 
 // ─── MODE TABS ─────────────────────────────────────────────────────────────────
 function switchMode(mode) {
-    ['single','group','batch','file','insta'].forEach(m => {
+    ['single','group','batch','file','manual','insta'].forEach(m => {
         document.getElementById('tab' + m.charAt(0).toUpperCase() + m.slice(1)).classList.toggle('active', m === mode);
         document.getElementById('panel' + m.charAt(0).toUpperCase() + m.slice(1)).classList.toggle('active', m === mode);
     });
@@ -1080,7 +1146,14 @@ function parseBatchLinks(raw) {
 }
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
-function setStatus(msg, type)      { const el = document.getElementById('status');      el.textContent = msg; el.className = type || ''; }
+function setStatus(msg, type)      {
+    ['status', 'manualStatus'].forEach(id => {
+        const el = document.getElementById(id);
+        el.textContent = msg;
+        el.className = type || '';
+        if (id === 'manualStatus') el.style.color = type === 'ok' ? 'var(--green)' : type === 'err' ? '#f87171' : 'var(--text-muted)';
+    });
+}
 function setBatchStatus(msg, type) { const el = document.getElementById('batchStatus'); el.textContent = msg; el.className = type || ''; }
 function setFileStatus(msg, type)  { const el = document.getElementById('fileStatus');  el.textContent = msg; el.className = type || ''; }
 function showBlock(id) { const el = document.getElementById(id); if (el) el.classList.add('visible'); }
@@ -1090,8 +1163,14 @@ function showArticle(value) {
     currentArticle = value || '';
     const badge = document.getElementById('articleBadge');
     const val   = document.getElementById('articleValue');
-    if (currentArticle) { val.textContent = currentArticle; badge.classList.add('visible'); }
-    else { badge.classList.remove('visible'); }
+    const mBadge = document.getElementById('m_articleBadge');
+    const mVal   = document.getElementById('m_articleValue');
+    if (currentArticle) {
+        val.textContent = currentArticle; badge.classList.add('visible');
+        mVal.textContent = currentArticle; mBadge.classList.add('visible');
+    } else {
+        badge.classList.remove('visible'); mBadge.classList.remove('visible');
+    }
 }
 
 function lockAll(lock) {
@@ -1160,7 +1239,8 @@ function extractArticle(pageText) {
 }
 
 // ─── PROMPTS ──────────────────────────────────────────────────────────────────
-function buildPrompt(pageText, managerNotes, noBrand, hasNoUrl) {
+function buildPrompt(pageText, managerNotes, noBrand, hasNoUrl, imageUrl) {
+    const imgSrc = imageUrl || 'https://images.prom.ua/7502610463_w1280_h1280_zaglushka_foto.jpeg?fresh=1';
     const noBrandBlock = noBrand ? `
 ⛔ РЕЖИМ «БЕЗ БРЕНДА» — СТРОГО ОБОВ'ЯЗКОВО
 Визнач назву бренду/виробника з тексту сторінки.
@@ -1197,7 +1277,7 @@ ${noBrandBlock}
 <div class="section" style="display:flex;align-items:center;gap:30px;flex-wrap:wrap;margin-bottom:30px;">
   <div style="flex:1;min-width:300px;">
     ${hasNoUrl
-        ? `<img src="https://images.prom.ua/7502610463_w1280_h1280_zaglushka_foto.jpeg?fresh=1" alt="Фото товару" style="max-width:100%;border-radius:10px;">`
+        ? `<img src="${imgSrc}" alt="Фото товару" style="max-width:100%;border-radius:10px;">`
         : `[Головне зображення товару — використовуй реальний img src зі сторінки якщо є, інакше встав: <img src="https://images.prom.ua/7502610463_w1280_h1280_zaglushka_foto.jpeg?fresh=1" alt="Фото товару" style="max-width:100%;border-radius:10px;">]`}
   </div>
   <div style="flex:1;min-width:300px;">
@@ -1614,7 +1694,7 @@ async function processProduct(source, managerNotes, noBrand, onStage, isCancelle
 
     // Опис УКР
     onStage(1, 'active', '⏳ Генерую HTML-опис (УКР)...');
-    const ua = await callServer(buildPrompt(pageText, managerNotes, noBrand, !isUrl));
+    const ua = await callServer(buildPrompt(pageText, managerNotes, noBrand, !isUrl, isUrl ? '' : (source.imageUrl || '')));
     if (isCancelled()) { result.error = 'cancelled'; return result; }
     if (!ua.ok) { onStage(1, 'error', '❌ Помилка генерації УКР'); result.error = 'desc_ua_failed'; return result; }
 
@@ -1697,6 +1777,7 @@ async function runAuto() {
     if (!url.startsWith('http')){ setStatus('⚠️ Посилання має починатися з http://', 'err'); return; }
 
     autoCancelled = false;
+    currentSourceUrl = null;
     lockAll(true);
     apReset(); apShow();
     document.getElementById('apCancelBtn').disabled = false;
@@ -2296,6 +2377,7 @@ async function generate(noBrand) {
     if (!url.startsWith('http')) { setStatus('⚠️ Посилання має починатися з http://', 'err'); return; }
 
     _noBrandMode = noBrand;
+    currentSourceUrl = null;
     const managerNotes = document.getElementById('managerNotes').value.trim();
     const modeLabel = noBrand ? ' [БЕЗ БРЕНДА]' : '';
 
@@ -2404,7 +2486,7 @@ async function saveToSheets() {
             headers: { 'Content-Type': 'text/plain' },
             body: JSON.stringify({
                 article: currentArticle,
-                url:     document.getElementById('link').value   || '',
+                url:     currentSourceUrl !== null ? currentSourceUrl : (document.getElementById('link').value || ''),
                 nameUA:  document.getElementById('nameUA').value || '',
                 nameRU:  document.getElementById('nameRU').value || '',
                 descUA:  document.getElementById('resUA').value  || '',
@@ -2508,6 +2590,146 @@ async function runGroup(noBrand) {
     }
 
     lockGroup(false);
+}
+
+// ─── СВІЙ ОПИС (ручні нотатки) ───────────────────────────────────────────────
+// Дзеркалимо стан кнопок SEO/Назва/Таблиця/Авто/Створити між вкладкою «Один товар»
+// і вкладкою «Свій опис», щоб існуючі функції (generateSEO, generateName,
+// saveToSheets, lockAll...) працювали для обох без переписування.
+(function mirrorManualButtons() {
+    const desc = Object.getOwnPropertyDescriptor(HTMLButtonElement.prototype, 'disabled');
+    [['autoBtn','m_autoBtn'], ['genBtn','m_genBtn'], ['noBrandBtn','m_noBrandBtn'],
+     ['seoBtn','m_seoBtn'], ['nameBtn','m_nameBtn'], ['saveBtn','m_saveBtn']].forEach(([a, b]) => {
+        const elA = document.getElementById(a), elB = document.getElementById(b);
+        if (!elA || !elB) return;
+        Object.defineProperty(elA, 'disabled', {
+            configurable: true,
+            get() { return desc.get.call(elA); },
+            set(v) { desc.set.call(elA, v); desc.set.call(elB, v); }
+        });
+    });
+})();
+
+function onManualNotesChange() {
+    const n = document.getElementById('manualNotes').value.length;
+    document.getElementById('manualNotesCount').textContent = n + ' символів';
+}
+
+function readManualInput() {
+    const name    = document.getElementById('manualName').value.trim();
+    const article = document.getElementById('manualArticle').value.trim();
+    const image   = document.getElementById('manualImage').value.trim();
+    const notes   = document.getElementById('manualNotes').value.trim();
+    return { name, article, image, notes };
+}
+
+function validateManualInput(inp) {
+    if (!inp.name && !inp.notes) {
+        setStatus('⚠️ Введіть назву товару або нотатки!', 'err');
+        return false;
+    }
+    if (inp.image && !/^https?:\/\//i.test(inp.image)) {
+        setStatus('⚠️ Посилання на фото має починатися з http:// або https://', 'err');
+        return false;
+    }
+    return true;
+}
+
+function buildManualSourceText(inp) {
+    let txt = '';
+    if (inp.name)    txt += `Назва товару: ${inp.name}\n`;
+    if (inp.article) txt += `Артикул: ${inp.article}\n`;
+    txt += `\nСИРІ НОТАТКИ ВІД МЕНЕДЖЕРА (неструктурований текст, може бути українською або російською — все пиши УКРАЇНСЬКОЮ):\n${inp.notes || '(нотаток немає — використовуй лише назву товару)'}\n`;
+    txt += `\nВАЖЛИВО ДЛЯ ЦЬОГО ДЖЕРЕЛА: це лише чернетка-нотатки, а не готова сторінка товару. ` +
+           `Використовуй ТІЛЬКИ факти, які прямо є в нотатках і назві. НІЧОГО не вигадуй: ` +
+           `ні характеристик, ні розмірів, ні матеріалів, ні гарантій. ` +
+           `Якщо даних мало — розділи «Характеристики» та швидкі параметри мають бути коротшими (рядки без даних не створюй). ` +
+           `Переваги, FAQ і «Порада майстра» формулюй лише на основі наданих фактів і загальновідомого призначення типу товару.`;
+    return txt;
+}
+
+function manualArticleFor(inp) {
+    if (inp.article) return inp.article;
+    const found = extractArticle(inp.notes);
+    return found || '—';
+}
+
+async function runManualAuto() {
+    const inp = readManualInput();
+    if (!validateManualInput(inp)) return;
+
+    autoCancelled = false;
+    currentSourceUrl = '';
+    lockAll(true);
+    apReset(); apShow();
+    document.getElementById('apCancelBtn').disabled = false;
+    clearResults(); setStatus('');
+
+    const managerNotes = document.getElementById('managerNotes').value.trim();
+    const source = {
+        type: 'text',
+        text: buildManualSourceText(inp),
+        article: manualArticleFor(inp),
+        imageUrl: inp.image,
+        label: ''
+    };
+
+    const onStage = (idx, state, msg) => {
+        apSetStep(idx, state);
+        if (msg) apSetMsg(msg);
+        apSetBar(Math.min(100, (idx + (state === 'done' ? 1 : 0.4)) * 20));
+    };
+
+    const res = await processProduct(source, managerNotes, false, onStage, () => autoCancelled);
+
+    if (autoCancelled) { apSetMsg('⛔ Авто-режим скасовано'); setStatus('⛔ Скасовано.', ''); lockAll(false); return; }
+    if (!res.ok) { setStatus('❌ Помилка обробки: ' + (res.error || 'unknown'), 'err'); lockAll(false); return; }
+
+    showLastResultInMainFields(res);
+    apSetMsg(res.saveOk ? '✅ Все готово! Дані збережено до таблиці.' : '⚠️ Готово, але не вдалося записати до таблиці.');
+    setStatus(`✅ Авто-режим завершено! Артикул: ${res.article}`, 'ok');
+    lockAll(false);
+    document.getElementById('seoBtn').disabled  = false;
+    document.getElementById('nameBtn').disabled = false;
+    document.getElementById('saveBtn').disabled = false;
+}
+
+async function generateManual(noBrand) {
+    const inp = readManualInput();
+    if (!validateManualInput(inp)) return;
+
+    _noBrandMode = noBrand;
+    currentSourceUrl = '';
+    const managerNotes = document.getElementById('managerNotes').value.trim();
+    const modeLabel = noBrand ? ' [БЕЗ БРЕНДА]' : '';
+
+    ['genBtn','noBrandBtn','autoBtn','seoBtn','nameBtn','saveBtn'].forEach(id => { document.getElementById(id).disabled = true; });
+    clearResults(); setStatus('');
+    showArticle(manualArticleFor(inp));
+
+    setStatus(`⏳ Генерую УКР опис за нотатками${modeLabel}...`, '');
+    const sourceText = buildManualSourceText(inp);
+    const ua = await callServer(buildPrompt(sourceText, managerNotes, noBrand, true, inp.image));
+    if (ua.ok) {
+        document.getElementById('resUA').value = KLONDAIK_STYLES + fixBuyButton(ua.text);
+        showBlock('blockUA');
+        setStatus(`⏳ Перекладаю опис на РУС${modeLabel}...`, '');
+        const ru = await callServer(buildTranslateDescPrompt(ua.text, noBrand));
+        if (ru.ok) {
+            document.getElementById('resRU').value = KLONDAIK_STYLES + fixBuyButton(ru.text);
+            showBlock('blockRU');
+            setStatus(`✅ Описи готові${modeLabel}! Артикул: ${currentArticle}. Наступний крок — SEO-ключі.`, 'ok');
+        } else {
+            setStatus('⚠️ УКР готово, але сталася помилка при перекладі РУС.', '');
+        }
+        document.getElementById('seoBtn').disabled = false;
+    } else {
+        setStatus('❌ Помилка при генерації опису.', 'err');
+    }
+
+    document.getElementById('genBtn').disabled     = false;
+    document.getElementById('noBrandBtn').disabled = false;
+    document.getElementById('autoBtn').disabled    = false;
 }
 
 // ─── COPY ─────────────────────────────────────────────────────────────────────
