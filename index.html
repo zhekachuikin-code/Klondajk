@@ -1251,17 +1251,33 @@ async function fetchPageText(url) {
     } catch (e) { return null; }
 }
 
-async function callServer(prompt) {
+// Сервер на Render (безкоштовний план) «засинає» і може прокидатися 30–60 с,
+// а Gemini іноді відповідає дуже довго. Раніше запит міг висіти вічно —
+// тепер є таймаут і одна автоматична повторна спроба.
+const SERVER_TIMEOUT_MS = 150000;
+async function callServer(prompt, attempt = 0) {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), SERVER_TIMEOUT_MS);
     try {
         const resp = await fetch(SERVER_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt })
+            body: JSON.stringify({ prompt }),
+            signal: ctrl.signal
         });
         const data = await resp.json();
-        return data.ok ? { ok: true, text: data.text } : { ok: false, text: '' };
-    } catch (e) { return { ok: false, text: '' }; }
+        clearTimeout(timer);
+        if (data.ok && data.text) return { ok: true, text: data.text };
+    } catch (e) { clearTimeout(timer); }
+    if (attempt < 1) {
+        await new Promise(r => setTimeout(r, 3000));
+        return callServer(prompt, attempt + 1);
+    }
+    return { ok: false, text: '' };
 }
+
+// «Будимо» сервер одразу при відкритті сторінки, щоб перший запит не чекав холодного старту
+fetch(SERVER_URL.replace('/api/generate', '/'), { mode: 'no-cors' }).catch(() => {});
 
 function extractArticle(pageText) {
     const re = /(?:артикул|арт(?:икул)?\.?|код товару|код товара|article|sku|item\s*(?:no|num|#|code))[:\s#]+([A-Za-zА-Яа-яЁёІіЇїЄє0-9][-A-Za-zА-Яа-яЁёІіЇїЄє0-9_.\/]{1,30})/gi;
