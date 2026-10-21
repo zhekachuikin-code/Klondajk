@@ -1726,7 +1726,8 @@ function bpDisableControls() {
 const STAGE_LABELS = ['Парсинг', 'Опис УКР/РУС', 'SEO-ключі', 'Назва'];
 
 // ─── CORE: ОБРОБКА ОДНОГО ТОВАРУ ─────────────────────────────────────────────
-async function processProduct(source, managerNotes, noBrand, onStage, isCancelled) {
+async function processProduct(source, managerNotes, noBrand, onStage, isCancelled, onPartial) {
+    const partial = () => { try { if (onPartial) onPartial(result); } catch (e) { console.warn('onPartial:', e); } };
     const isUrl = typeof source === 'string';
     const url   = isUrl ? source : (source.label || '');
     const result = { ok: false, article: '', url, nameUA: '', nameRU: '', descUA: '', descRU: '', seoUA: '', seoRU: '' };
@@ -1751,6 +1752,8 @@ async function processProduct(source, managerNotes, noBrand, onStage, isCancelle
     const ua = await callServer(buildPrompt(pageText, managerNotes, noBrand, !isUrl, isUrl ? '' : (source.imageUrl || '')));
     if (isCancelled()) { result.error = 'cancelled'; return result; }
     if (!ua.ok) { onStage(1, 'error', '❌ Помилка генерації УКР — ' + lastServerError); result.error = 'desc_ua_failed'; return result; }
+    result.descUA = KLONDAIK_STYLES + fixBuyButton(ua.text);
+    partial();   // УКР опис одразу на екран
 
     // Опис РУС
     onStage(1, 'active', '⏳ Перекладаю опис (РУС)...');
@@ -1758,15 +1761,15 @@ async function processProduct(source, managerNotes, noBrand, onStage, isCancelle
     if (isCancelled()) { result.error = 'cancelled'; return result; }
     if (!ru.ok) { onStage(1, 'error', '❌ Помилка перекладу РУС — ' + lastServerError); result.error = 'desc_ru_failed'; return result; }
 
-    result.descUA = KLONDAIK_STYLES + fixBuyButton(ua.text);
     result.descRU = KLONDAIK_STYLES + fixBuyButton(ru.text);
     onStage(1, 'done');
+    partial();   // РУС опис
 
     // SEO УКР
     onStage(2, 'active', '⏳ Генерую SEO-ключі (УКР)...');
     const seoUa = await callServer(buildSEOPrompt(ua.text, noBrand));
     if (isCancelled()) { result.error = 'cancelled'; return result; }
-    if (seoUa.ok) result.seoUA = seoUa.text;
+    if (seoUa.ok) { result.seoUA = seoUa.text; partial(); }   // SEO УКР
 
     // SEO РУС — лише якщо є УКР ключі
     if (result.seoUA) {
@@ -1778,7 +1781,7 @@ async function processProduct(source, managerNotes, noBrand, onStage, isCancelle
             const seoRu2 = await callServer(buildTranslateSEOPrompt(result.seoUA));
             if (!isCancelled() && seoRu2.ok) seoRu = seoRu2;
         }
-        if (seoRu.ok) result.seoRU = seoRu.text;
+        if (seoRu.ok) { result.seoRU = seoRu.text; partial(); }   // SEO РУС
     }
     onStage(2, 'done');
 
@@ -1791,6 +1794,7 @@ async function processProduct(source, managerNotes, noBrand, onStage, isCancelle
         result.nameUA = (lines.find(l => l.startsWith('UA:')) || '').replace('UA:', '').trim().replace(/["«»""]/g, '');
         result.nameRU = (lines.find(l => l.startsWith('RU:')) || '').replace('RU:', '').trim().replace(/["«»""]/g, '');
         onStage(3, 'done');
+        partial();   // Назва
     } else {
         onStage(3, 'error', '⚠️ Помилка генерації назви');
     }
@@ -1821,10 +1825,10 @@ async function runAuto() {
         apSetBar(Math.min(100, (idx + (state === 'done' ? 1 : 0.4)) * 25));
     };
 
-    const res = await processProduct(url, managerNotes, false, onStage, () => autoCancelled);
+    const res = await processProduct(url, managerNotes, false, onStage, () => autoCancelled, showPartialResult);
 
-    if (autoCancelled) { apSetMsg('⛔ Авто-режим скасовано'); setStatus('⛔ Скасовано.', ''); lockAll(false); return; }
-    if (!res.ok) { setStatus('❌ Помилка обробки товару: ' + (res.error || 'unknown'), 'err'); lockAll(false); return; }
+    if (autoCancelled) { apSetMsg('⛔ Авто-режим скасовано'); setStatus('⛔ Скасовано.', ''); unlockAfterPartial(res); return; }
+    if (!res.ok) { setStatus('❌ Помилка обробки товару: ' + (res.error || 'unknown'), 'err'); unlockAfterPartial(res); return; }
 
     showLastResultInMainFields(res);
     apSetMsg('✅ Все готово! Для запису в таблицю натисніть «📊 В таблицю».');
@@ -2068,6 +2072,31 @@ function escapeHtml(s) {
 }
 
 // ─── SHOW LAST RESULT ─────────────────────────────────────────────────────────
+// Показує те, що вже готово (без очищення) — викликається після кожного етапу
+function showPartialResult(res) {
+    showArticle(res.article);
+    if (res.descUA) { document.getElementById('resUA').value = res.descUA; showBlock('blockUA'); }
+    if (res.descRU) { document.getElementById('resRU').value = res.descRU; showBlock('blockRU'); }
+    if (res.seoUA)  { document.getElementById('seoUA').value = res.seoUA; showBlock('blockSEO-UA'); }
+    if (res.seoRU)  { document.getElementById('seoRU').value = res.seoRU; showBlock('blockSEO-RU'); }
+    if (res.nameUA || res.nameRU) {
+        document.getElementById('nameUA').value = res.nameUA;
+        document.getElementById('nameRU').value = res.nameRU;
+        document.getElementById('nameSectionHeader').classList.add('visible');
+        showBlock('blockNameUA'); showBlock('blockNameRU');
+    }
+}
+
+// Після збою/скасування: готові блоки лишаються, а кнопки для дозапуску розблоковуються
+function unlockAfterPartial(res) {
+    lockAll(false);
+    if (res && res.descUA) {
+        document.getElementById('seoBtn').disabled  = false;
+        document.getElementById('nameBtn').disabled = false;
+        document.getElementById('saveBtn').disabled = false;
+    }
+}
+
 function showLastResultInMainFields(res) {
     clearResults();
     showArticle(res.article);
@@ -2706,10 +2735,10 @@ async function runManualAuto() {
         apSetBar(Math.min(100, (idx + (state === 'done' ? 1 : 0.4)) * 25));
     };
 
-    const res = await processProduct(source, managerNotes, false, onStage, () => autoCancelled);
+    const res = await processProduct(source, managerNotes, false, onStage, () => autoCancelled, showPartialResult);
 
-    if (autoCancelled) { apSetMsg('⛔ Авто-режим скасовано'); setStatus('⛔ Скасовано.', ''); lockAll(false); return; }
-    if (!res.ok) { setStatus('❌ Помилка обробки: ' + (res.error || 'unknown'), 'err'); lockAll(false); return; }
+    if (autoCancelled) { apSetMsg('⛔ Авто-режим скасовано'); setStatus('⛔ Скасовано.', ''); unlockAfterPartial(res); return; }
+    if (!res.ok) { setStatus('❌ Помилка обробки: ' + (res.error || 'unknown'), 'err'); unlockAfterPartial(res); return; }
 
     showLastResultInMainFields(res);
     apSetMsg('✅ Все готово! Для запису в таблицю натисніть «📊 В таблицю».');
