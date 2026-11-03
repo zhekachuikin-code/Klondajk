@@ -1287,8 +1287,8 @@ async function callServer(prompt, attempt = 0) {
 }
 
 // «Будимо» сервер одразу при відкритті сторінки, щоб перший запит не чекав холодного старту.
-// Відповідь 404 на «/» у консолі — це нормально: сервер відповів, отже прокинувся.
-fetch(SERVER_URL.replace('/api/generate', '/'), { mode: 'no-cors' }).catch(() => {});
+// Запит на /health — легка перевірка, що сервер живий.
+fetch(SERVER_URL.replace('/api/generate', '/health'), { mode: 'no-cors' }).catch(() => {});
 
 function extractArticle(pageText) {
     const re = /(?:артикул|арт(?:икул)?\.?|код товару|код товара|article|sku|item\s*(?:no|num|#|code))[:\s#]+([A-Za-zА-Яа-яЁёІіЇїЄє0-9][-A-Za-zА-Яа-яЁёІіЇїЄє0-9_.\/]{1,30})/gi;
